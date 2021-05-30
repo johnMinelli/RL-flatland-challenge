@@ -1,0 +1,38 @@
+﻿# To create an environment from the following requirements use
+# conda env create -f path/to/environment.yml
+
+# Whereas to update the environment use the following commands
+# conda activate flatland
+# conda env update -f environment.yml --prune
+name: flatland-rl
+channels:
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - psutil==5.7.2
+  - python==3.6.8
+  # Visualization
+  - cairosvg
+  - pycairo
+  - tk
+  - pip
+  - pip:
+    # The world simulation
+    - flatland-rl==2.2.1
+    # Notebooks
+    - jupyter
+    - ipycanvas
+    # Visualization
+    - tensorboard==2.3.0
+    - tensorboardx==2.1
+    # Neural networks
+    - tensorflow
+    - torch
+    - torchviz
+    # To read config files
+    - pyyaml
+    # Weights and Biases
+    - wandb==0.9.5
+    # To keep the env clean
+    - pip-autoremove
