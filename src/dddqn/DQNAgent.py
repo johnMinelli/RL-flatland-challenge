@@ -1,9 +1,11 @@
-from ..common.Agent import Agent
-from .model import DQN
 from collections import deque
 import copy
 import numpy as np
 import random
+
+# local imports
+from dddqn.model import DQN
+from common.Agent import Agent
 
 
 class DQNAgent(Agent):
@@ -14,22 +16,26 @@ class DQNAgent(Agent):
         self.action_size = action_size
 
         # memory parameters
-        self.memory = deque(maxlen=5000)
+        self.buffer_size = 5000
+        self.memory = deque(maxlen=self.buffer_size)
         self.batch_size = 512 # minibatch to sample
+        # self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
 
         # Hyperparameters
         self.gamma = 1.0  # Discount rate
+        # potremmo separare selection policy in altro file
         self.epsilon = 1.0  # Exploration rate
         self.epsilon_min = 0.1  # Minimal exploration rate (epsilon-greedy)
         self.epsilon_decay = 0.995  # Decay rate for epsilon
-        self.update_rate = 100  # Number of steps until updating the target network
+
+        self.t_step = 0
+        self.update_rate = 4  # number of steps before learning
+        self.update_network_rate = 100 # Number of steps before updating the target network
         self.tau = 1e-3 # update target network
 
         # Construct DQN models
         self.model = DQN(self.state_size, self.action_size)
         self.target_model = copy.deepcopy(self.model) # fixed q-targets
-
-        #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
 
     def act(self, state):
         """Returns actions for given state as per current policy (epsilon-greedy).
@@ -70,14 +76,15 @@ class DQNAgent(Agent):
                Params
                ======
                    experiences (Tuple): tuple of (s, a, r, s', done) tuples
-               """
+        """
         states, actions, rewards, next_states, dones = experiences # sampled
 
         targets = rewards + (self.gamma * np.amax(self.target_model.predict(next_states)) * (1-dones))
 
         self.model.fit(states, targets, epochs=1, verbose=0)
 
-        self.update_target_model()
+        if self.t_step % self.update_network_rate == 0:
+            self.update_target_model()
 
     def update_target_model(self):
         self.target_model.set_weights(self.tau * self.model.get_weights() + (1.0 - self.tau) * self.target_model.get_weights())
