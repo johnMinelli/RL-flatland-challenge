@@ -1,0 +1,19 @@
+predictor:
+  # Maximum depth for the predictor
+  # (for the shortest/deviation predictor
+  # it indicates the maximum number of deviations)
+  max_depth: 4
+
+training:
+  # Checkpoint interval (how often to evaluate and save the model)
+  checkpoint: 500
+  # Number of episodes to run
+  episodes: 7500
+  # Path to the model file to load
+  model: ""
+
+evaluating:
+  # Number of episodes to run
+  episodes: 20
+  # Path to the model file to load
+  model: ""

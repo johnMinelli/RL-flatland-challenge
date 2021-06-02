@@ -42,7 +42,7 @@ class FlatlandRailEnv:
             self.env = StatsWrapper(self.env,
                                      env_params)
 
-    def _launch(self, env_params, observation):
+    def _launch(self, env_params, observer):
         return RailEnv(
             width=env_params.x_dim,
             height=env_params.y_dim,
@@ -56,7 +56,7 @@ class FlatlandRailEnv:
             schedule_generator=sparse_schedule_generator(env_params.speed_profiles),
             number_of_agents=env_params.n_agents,
             malfunction_generator_and_process_data=malfunction_from_params(env_params.malfunction_parameters),
-            obs_builder_object=observation,
+            obs_builder_object=observer,
             random_seed=env_params.seed
         )
 
@@ -70,7 +70,7 @@ class FlatlandRailEnv:
         return self.env.rail_env
 
 
-class FlatlandGymEnv(gym.Env):
+class FlatlandGymEnv(gym.Env): # TODO
     """
     gym.Env wrapper of the Flatland environment providing deadlocks and observation normalization.
     """

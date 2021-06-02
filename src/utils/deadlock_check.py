@@ -1,4 +1,4 @@
-rom flatland.core.grid.grid4_utils import get_new_position
+from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
 
 
