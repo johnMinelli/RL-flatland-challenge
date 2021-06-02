@@ -4,6 +4,39 @@ predictor:
   # it indicates the maximum number of deviations)
   max_depth: 4
 
+# Replay buffer config
+replay_buffer:
+  # Maximum buffer dimension
+  size: 100000
+  # Batch size
+  batch_size: 128
+  # Try to learn after this many steps
+  checkpoint: 4
+  # Replay buffer to restore
+  load: ""
+  # Save replay buffer at each checkpoint
+  save: False
+
+dddqn:
+  buffer_size: 5000
+  # minibatch to sample
+  batch_size: 512
+  # Discount rate
+  gamma: 1.0
+  # Exploration rate
+  epsilon: 1.0
+  # Minimal exploration rate (epsilon-greedy)
+  epsilon_min: 0.1
+  # Decay rate for epsilon
+  epsilon_decay: 0.995
+  t_step: 0
+  # number of steps before learning
+  update_rate: 4
+  # Number of steps before updating the target network
+  update_network_rate: 100
+  # update target network
+  tau: 1e-3
+
 training:
   # Checkpoint interval (how often to evaluate and save the model)
   checkpoint: 500

@@ -4,34 +4,34 @@ import numpy as np
 import random
 
 # local imports
-from dddqn.model import DQN
-from common.Agent import Agent
+from src.common.Agent import Agent
+from src.dddqn.model import DQN
 
 
 class DQNAgent(Agent):
     """ Initializes attributes and constructs CNN model and target_model """
 
-    def __init__(self, state_size, action_size):
+    def __init__(self, state_size, action_size, train_params):
         self.state_size = state_size
         self.action_size = action_size
 
         # memory parameters
-        self.buffer_size = 5000
+        self.buffer_size = train_params.buffer_size
         self.memory = deque(maxlen=self.buffer_size)
-        self.batch_size = 512 # minibatch to sample
+        self.batch_size = train_params.batch_size
         # self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
 
         # Hyperparameters
-        self.gamma = 1.0  # Discount rate
+        self.gamma = train_params.gamma
         # potremmo separare selection policy in altro file
-        self.epsilon = 1.0  # Exploration rate
-        self.epsilon_min = 0.1  # Minimal exploration rate (epsilon-greedy)
-        self.epsilon_decay = 0.995  # Decay rate for epsilon
+        self.epsilon = train_params.epsilon
+        self.epsilon_min = train_params.epsilon_min
+        self.epsilon_decay = train_params.epsilon_decay
 
-        self.t_step = 0
-        self.update_rate = 4  # number of steps before learning
-        self.update_network_rate = 100 # Number of steps before updating the target network
-        self.tau = 1e-3 # update target network
+        self.t_step = train_params.t_step
+        self.update_rate = train_params.update_rate
+        self.update_network_rate = train_params.update_network_rate
+        self.tau = train_params.tau
 
         # Construct DQN models
         self.model = DQN(self.state_size, self.action_size)

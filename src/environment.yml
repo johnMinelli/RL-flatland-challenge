@@ -28,8 +28,7 @@ dependencies:
     - tensorboardx==2.1
     # Neural networks
     - tensorflow
-    - torch
-    - torchviz
+    - keras
     # To read config files
     - pyyaml
     # Weights and Biases
