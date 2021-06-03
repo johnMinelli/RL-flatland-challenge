@@ -6,8 +6,7 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
 from src.env.flatland_railenv import FlatlandRailEnv
 from src.utils.log_utils import Timer, TBLogger
-
-from dddqn.DQNPolicy import DQNPolicy
+from src.dddqn.DQNPolicy import DQNPolicy
 
 
 def train(env_params, train_params):

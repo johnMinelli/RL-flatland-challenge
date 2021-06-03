@@ -6,8 +6,7 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
 from src.env.flatland_railenv import FlatlandRailEnv
 from src.utils.log_utils import Timer, TBLogger
-
-from dddqn.DQNPolicy import DQNPolicy
+from src.dddqn.DQNPolicy import DQNPolicy
 
 
 def eval(env_params, train_params):
@@ -112,7 +111,7 @@ def eval(env_params, train_params):
             "☑️  Score: {:.3f} \tDone: {:.1f}% \tNb steps: {:.3f} "
             "\t🍭 Seed: {}"
             "\t🚉 Env: {:.3f}s  "
-            "\t🤖 Agent: {:.3f}s (per step: {:.3f}s) \t[preproc: {:.3f}s \tinfer: {:.3f}s]"
+            "\t🤖 Policy: {:.3f}s (per step: {:.3f}s) \t[preproc: {:.3f}s \tinfer: {:.3f}s]"
             "{}{}".format(
                 normalized_score,
                 completion * 100.0,
@@ -139,14 +138,14 @@ def eval(env_params, train_params):
     step_times = results[:,4]
 
     print("-" * 200)
-    print("✅ Score: {:.3f} \tDone: {:.1f}% \tNb steps: {:.3f} \tAgent total: {:.3f}s (per step: {:.3f}s)".format(
+    print("✅ Score: {:.3f} \tDone: {:.1f}% \tNb steps: {:.3f} \tPolicy total: {:.3f}s (per step: {:.3f}s)".format(
         np.mean(scores),
         np.mean(completions) * 100.0,
         np.mean(nb_steps),
         np.mean(times),
         np.mean(times) / np.mean(nb_steps)
     ))
-    print("⏲️  Agent sum: {:.3f}s \tEnv sum: {:.3f}s \tTotal sum: {:.3f}s".format(
+    print("⏲️  Policy sum: {:.3f}s \tEnv sum: {:.3f}s \tTotal sum: {:.3f}s".format(
         np.sum(times),
         np.sum(step_times),
         np.sum(times) + np.sum(step_times)

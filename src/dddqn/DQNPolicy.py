@@ -4,22 +4,23 @@ import numpy as np
 import random
 
 # local imports
-from src.common.Agent import Agent
+from src.common.Policy import Policy
 from src.dddqn.model import DQN
+from src.dddqn.experience_replay import ReplayBuffer
 
 
-class DQNPolicy(Agent):
+class DQNPolicy(Policy):
     """ Initializes attributes and constructs CNN model and target_model """
 
     def __init__(self, state_size, action_size, train_params):
+        super(DQNPolicy, self).__init__()
+
         self.state_size = state_size
         self.action_size = action_size
 
         # memory parameters
-        self.buffer_size = train_params.buffer_size
-        self.memory = deque(maxlen=self.buffer_size)
-        self.batch_size = train_params.batch_size
-        # self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
+        self.memory = ReplayBuffer(train_params.batch_size, train_params.buffer_size)
+
 
         # Hyperparameters
         self.gamma = train_params.gamma
@@ -29,6 +30,7 @@ class DQNPolicy(Agent):
         self.epsilon_decay = train_params.epsilon_decay
 
         self.t_step = train_params.t_step
+        # 4 time steps for learning, 100 for updating target network
         self.update_rate = train_params.update_rate
         self.update_network_rate = train_params.update_network_rate
         self.tau = train_params.tau
@@ -46,7 +48,7 @@ class DQNPolicy(Agent):
         actions = self.model.predict(state)
 
         n = np.random.random()
-        print(n)
+
         if n <= self.epsilon:
             return np.random.randint(0, self.action_size)
         else:
@@ -54,14 +56,14 @@ class DQNPolicy(Agent):
 
     def step(self, state, action, reward, next_state, done, train=True):
         # Save experience in replay memory
-        self.memory.append((state, action, reward, next_state, done))
+        self.memory.add((state, action, reward, next_state, done))
 
         # Learn every update_rate time steps.
         self.t_step = (self.t_step + 1) % self.update_rate
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
-            if len(self.memory) > self.batch_size:
-                experiences = random.sample(self.memory)
+            if self.memory.can_sample():
+                experiences = self.memory.sample()
                 if train:
                     self.learn(experiences)
 

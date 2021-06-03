@@ -1,6 +1,6 @@
 
-class Agent:
-    """ Agent abstract class """
+class Policy:
+    """ Policy abstract class """
 
     def __init__(self, params=None, state_size=None, action_size=None):
         self.params = params
