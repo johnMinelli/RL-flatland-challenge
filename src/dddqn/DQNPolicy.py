@@ -8,7 +8,7 @@ from src.common.Agent import Agent
 from src.dddqn.model import DQN
 
 
-class DQNAgent(Agent):
+class DQNPolicy(Agent):
     """ Initializes attributes and constructs CNN model and target_model """
 
     def __init__(self, state_size, action_size, train_params):
@@ -56,7 +56,7 @@ class DQNAgent(Agent):
         # Save experience in replay memory
         self.memory.append((state, action, reward, next_state, done))
 
-        # Learn every UPDATE_EVERY time steps.
+        # Learn every update_rate time steps.
         self.t_step = (self.t_step + 1) % self.update_rate
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn

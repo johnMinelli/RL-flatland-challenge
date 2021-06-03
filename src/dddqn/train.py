@@ -7,6 +7,9 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from src.env.flatland_railenv import FlatlandRailEnv
 from src.utils.log_utils import Timer, TBLogger
 
+from dddqn.DQNPolicy import DQNPolicy
+
+
 def train(env_params, train_params):
     # Initialize wandb
 
@@ -33,7 +36,7 @@ def train(env_params, train_params):
     # Official formula used for the evaluation processes [flatland.envs.schedule_generators.sparse_schedule_generator]
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
-    policy = DDDQNPolicy(env.state_size, action_size, train_params)  # TODO policy
+    policy = DQNPolicy(env.state_size, action_size, train_params)  # TODO policy
 
     # Timers
     training_timer = Timer()
