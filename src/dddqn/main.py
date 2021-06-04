@@ -1,4 +1,7 @@
 ﻿import yaml
+from flatland.envs.observations import TreeObsForRailEnv
+from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+
 from src.utils import utils
 from src.dddqn import train
 from src.dddqn import eval
@@ -20,9 +23,13 @@ if __name__ == "__main__":
     # ===================================================
     env = p_env.small_env
 
-    env["observation_tree_depth"] = 2
+    observation_tree_depth = 2
+    observation_max_path_depth = 30
+    observer = TreeObsForRailEnv
+    observer_params = {"max_depth":observation_tree_depth}
+    predictor = ShortestPathPredictorForRailEnv
+    predictor_params = {"max_depth":observation_max_path_depth}
     env["observation_radius"] = 10
-    env["observation_max_path_depth"] = 30
 
     env["speed_profiles"] = {
         1.: 0.25,

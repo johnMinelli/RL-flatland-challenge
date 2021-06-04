@@ -37,7 +37,7 @@ def eval(env_params, train_params):
     # Official formula used for the evaluation processes [flatland.envs.schedule_generators.sparse_schedule_generator]
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
-    policy = DQNPolicy(env.state_size, action_size, train_params)  # TODO policy
+    policy = DQNPolicy(env.state_size, action_size, train_params)
 
     print("\nEvaluating: {} agents, {}x{} env, {} episodes.\n".format(env_params.n_agents, env_params.x_dim, env_params.y_dim, train_params.eval_episodes))
 
