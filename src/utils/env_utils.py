@@ -14,7 +14,7 @@ def create_rail_env(env_params, load_env=""):
         rail_generator = rail_from_file(load_env)
     else:
         rail_generator = sparse_rail_generator(
-            max_num_cities=env_params.max_cities,
+            max_num_cities=env_params.n_cities,
             grid_mode=env_params.grid,
             max_rails_between_cities=env_params.max_rails_between_cities,
             max_rails_in_city=env_params.max_rails_in_city,
@@ -27,11 +27,11 @@ def create_rail_env(env_params, load_env=""):
     tree_observer = env_params.observer(**env_params.observer_params, predictor=predictor)
 
     return FlatlandRailEnv(
-        params = env_params,
-        width = env_params.width,
-        height = env_params.height,
+        env_params,
+        env_params.width,
+        env_params.height,
         rail_generator = rail_generator,
-        schedule_generator = sparse_schedule_generator(env_params.speed_map, seed=env_params.seed),
+        schedule_generator = sparse_schedule_generator(env_params.speed_profiles, seed=env_params.seed),
         number_of_agents = env_params.n_agents,
         obs_builder_object = tree_observer,
         malfunction_generator_and_process_data = malfunction_from_params(env_params.malfunction_parameters),

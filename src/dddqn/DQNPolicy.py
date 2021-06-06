@@ -19,21 +19,21 @@ class DQNPolicy(Policy):
         self.action_size = action_size
 
         # memory parameters
-        self.memory = ReplayBuffer(train_params.batch_size, train_params.buffer_size)
+        self.memory = ReplayBuffer(train_params.replay_buffer.batch_size, train_params.replay_buffer.buffer_size)
 
 
         # Hyperparameters
-        self.gamma = train_params.gamma
+        self.gamma = train_params.dddqn.gamma
         # potremmo separare selection policy in altro file
-        self.epsilon = train_params.epsilon
-        self.epsilon_min = train_params.epsilon_min
-        self.epsilon_decay = train_params.epsilon_decay
+        self.epsilon = train_params.dddqn.epsilon_start
+        self.epsilon_min = train_params.dddqn.epsilon_end
+        self.epsilon_decay = train_params.dddqn.epsilon_decay
 
-        self.t_step = train_params.t_step
+        self.t_step = train_params.dddqn.t_step
         # 4 time steps for learning, 100 for updating target network
-        self.update_rate = train_params.update_rate
-        self.update_network_rate = train_params.update_network_rate
-        self.tau = train_params.tau
+        self.update_rate = train_params.dddqn.update_rate
+        self.update_network_rate = train_params.dddqn.update_network_rate
+        self.tau = train_params.dddqn.tau
 
         # Construct DQN models
         self.model = DQN(self.state_size, self.action_size)
@@ -90,3 +90,7 @@ class DQNPolicy(Policy):
 
     def update_target_model(self):
         self.target_model.set_weights(self.tau * self.model.get_weights() + (1.0 - self.tau) * self.target_model.get_weights())
+
+    def decay(self):
+        self.epsilon = max(self.epsilon_min, self.epsilon_decay * self.epsilon)
+

@@ -9,7 +9,9 @@ replay_buffer:
   # Maximum buffer dimension
   size: 100000
   # Batch size
-  batch_size: 128
+  batch_size: 512
+  # Buffer size
+  buffer_size: 5000
   # Try to learn after this many steps
   checkpoint: 4
   # Replay buffer to restore
@@ -18,15 +20,12 @@ replay_buffer:
   save: False
 
 dddqn:
-  buffer_size: 5000
-  # minibatch to sample
-  batch_size: 512
   # Discount rate
   gamma: 1.0
   # Exploration rate
-  epsilon: 1.0
+  epsilon_start: 1.0
   # Minimal exploration rate (epsilon-greedy)
-  epsilon_min: 0.1
+  epsilon_end: 0.1
   # Decay rate for epsilon
   epsilon_decay: 0.995
   t_step: 0
@@ -38,14 +37,20 @@ dddqn:
   tau: 1e-3
 
 training:
+  active: True
   # Checkpoint interval (how often to evaluate and save the model)
   checkpoint: 500
   # Number of episodes to run
   episodes: 7500
   # Path to the model file to load
   model: ""
+  # Log path
+  tensorboard_path: ""
+  # Console logs
+  print_stats: True
 
 evaluating:
+  active: False
   # Number of episodes to run
   episodes: 20
   # Path to the model file to load

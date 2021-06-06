@@ -1,7 +1,6 @@
+import numpy as np
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
-
-
 
 class FlatlandRailEnv(RailEnv):
     """
@@ -11,13 +10,16 @@ class FlatlandRailEnv(RailEnv):
         super(FlatlandRailEnv, self).__init__(*args, **kwargs)
 
         self.params = env_params
-        self.env = super()
         self.env_renderer = None
-        self.deadlocks_detector = None # TODO
-        self.observation_normalizer = None # TODO
+        self.deadlocks_detector = None  # TODO
+        self.observation_normalizer = env_params.observer_normalizer  # TODO would be great a wrapper
+        # Calculate the state size given the depth of the tree observation and the number of features
+        n_features_per_node = self.obs_builder.observation_dim
+        n_nodes = sum([np.power(4, i) for i in range(self.params.observer_params['max_depth'] + 1)])
+        self.state_size = n_features_per_node * n_nodes
 
     def reset(self):
-        obs, info = self.env.reset() # are useful? regenerate_rail=, regenerate_schedule=
+        obs, info = super().reset() # are useful? regenerate_rail=, regenerate_schedule=
 
         # Reset rendering
         if self.params.render:
@@ -27,6 +29,9 @@ class FlatlandRailEnv(RailEnv):
         # Reset custom observations
         # Compute deadlocks
         # Normalization
+        for agent in obs:
+            if obs[agent]:
+                obs[agent] = self.observation_normalizer(obs[agent], self.params.observer_params['max_depth'], observation_radius=self.params.observation_radius)
 
         return obs, info
 
@@ -39,7 +44,6 @@ class FlatlandRailEnv(RailEnv):
         """
         obs, rewards, dones, info = super().step(action_dict)
 
-        # TODO
         # Compute deadlocks
         # deadlocks = self.deadlocks_detector.step(self.rail_env)
         # info["deadlocks"] = {}
@@ -47,10 +51,9 @@ class FlatlandRailEnv(RailEnv):
         #     info["deadlocks"][agent] = deadlocks[agent]
 
         # Normalization
-        # for agent in obs:
-        #     if obs[agent] is not None:
-        #         obs[agent] = self.observation_normalizer.normalize_observation(obs[agent], self.rail_env,
-        #                                                                        agent, info["deadlocks"][agent])
+        for agent in obs:
+            if obs[agent]:
+                obs[agent] = self.observation_normalizer(obs[agent], self.params.observer_params['max_depth'], observation_radius=self.params.observation_radius)
 
         return obs, rewards, dones, info
 
@@ -74,3 +77,6 @@ class FlatlandRailEnv(RailEnv):
         """
         if self.params.render:
             return self.env_renderer.close_window()
+
+    def get_rail_env(self):
+        return super()

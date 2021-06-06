@@ -4,12 +4,12 @@ small_env:
   seed: 1
   # Number of trains to spawn
   n_agents: 3
-  # Environment x_dim
-  x_dim: 16
+  # Environment width
+  width: 25
   # Environment height
-  y_dim: 16
+  height: 25
   # Maximum number of cities where agents can start or end
-  n_cities: 3
+  n_cities: 2
   # Type of city distribution
   grid: False
   # Maximum number of tracks allowed between cities
@@ -20,7 +20,7 @@ small_env:
   variable_speed: False
   # Enable malfunctions
   malfunctions_enabled: True
-  malfunctions:
+  malfunction_parameters:
     # Malfunction rate
     malfunction_rate: !!float 0.005
     # Malfunction minimum duration
@@ -29,41 +29,44 @@ small_env:
     max_duration: 50
   rewards:
     stop_penalty: 2.0
-  render: True
+  render: False
 
 
 medium_env:
   seed: 1
   n_agents: 7
-  x_dim: 48
-  y_dim: 27
+  width: 48
+  height: 27
   n_cities: 5
   grid: False
   max_rails_between_cities: 2
   max_rails_in_city: 3
   variable_speed: False
   malfunctions_enabled: True
-  malfunctions:
+  malfunction_parameters:
     malfunction_rate: !!float 0.005
     min_duration: 15
     max_duration: 50
   rewards:
     stop_penalty: 2.0
+  render: False
+
 
 big_env:
   seed: 1
   n_agents: 10
-  x_dim: 64
-  y_dim: 36
+  width: 64
+  height: 36
   n_cities: 9
   grid: False
   max_rails_between_cities: 5
   max_rails_in_city: 5
   variable_speed: False
   malfunctions_enabled: True
-  malfunctions:
+  malfunction_parameters:
     malfunction_rate: !!float 0.0125
     min_duration: 20
     max_duration: 50
   rewards:
     stop_penalty: 2.0
+  render: False

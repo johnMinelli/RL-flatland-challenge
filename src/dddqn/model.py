@@ -22,7 +22,7 @@ class DQN(Model):
     def __init__(self, state_size, action_size, loss='huber_loss', optimizer='Adam'):
         super(DQN, self).__init__()
 
-        self.layer1 = Dense(24, activation='relu', input_shape=state_size, kernel_initializer='he_uniform')
+        self.layer1 = Dense(24, activation='relu', input_shape=(state_size,), kernel_initializer='he_uniform')
         self.layer2 = Dense(12,  activation='relu', kernel_initializer='he_uniform')
         self.layer3 = Dense(action_size, activation='relu', kernel_initializer='he_uniform')
 
