@@ -27,7 +27,10 @@ def eval(env_params, train_params):
     tree_observation = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
 
     # Setup the environment
-    env = FlatlandRailEnv(train_params, env_params, tree_observation, env_params.custom_observations, env_params.reward_shaping, train_params.print_stats)
+    #env = FlatlandRailEnv(train_params, env_params, tree_observation, env_params.custom_observations, env_params.reward_shaping, train_params.print_stats)
+    # for now test without custom observation
+    env = FlatlandRailEnv(train_params, env_params, tree_observation,
+                          env_params.reward_shaping, train_params.print_stats)
     env.reset()
 
     # The action space of flatland is 5 discrete actions
@@ -79,7 +82,7 @@ def eval(env_params, train_params):
               # do agent ac
               policy.act()
               # TODO
-            # Environment step
+                # Environment step
             next_obs, all_rewards, done, info = env.step(action_dict)
             # TODO
             if done['__all__']:
