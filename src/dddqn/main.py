@@ -37,11 +37,12 @@ if __name__ == "__main__":
         1.: 0.25,
         1. / 2.: 0.25,
         1. / 3.: 0.25,
-        1. / 4.: 0.25}
+        1. / 4.: 0.25
+    }
 
     # run
     if t_env.evaluating.active:
-        eval(Namespace(**env), Namespace(**t_env))
+        eval(env, t_env)
     else:
         train(env, t_env)
 
