@@ -27,8 +27,8 @@ if __name__ == "__main__":
     observation_tree_depth = 2
     observation_max_path_depth = 30
     env.observer = TreeObsForRailEnv
-    env.observer_normalizer = normalize_observation
     env.observer_params = {"max_depth":observation_tree_depth}
+    env.observation_normalizer = normalize_observation
     env.predictor = ShortestPathPredictorForRailEnv
     env.predictor_params = {"max_depth":observation_max_path_depth}
     env.observation_radius = 10
