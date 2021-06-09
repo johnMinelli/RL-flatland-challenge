@@ -1,7 +1,7 @@
-from keras.models import Sequential
-from keras.layers import Conv2D, Flatten, Dense
-from keras.optimizer_v2.rmsprop import RMSprop
+from keras.layers import Dense
 from keras import Model
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
 
 
 class DQN(Model):
@@ -19,25 +19,63 @@ class DQN(Model):
     def get_config(self):
         pass
 
-    def __init__(self, state_size, action_size, loss='huber_loss', optimizer='Adam'):
+    def __init__(self, action_size, dense1_dims=24, dense2_dims=12, loss='huber_loss', learning_rate=1e-2):
         super(DQN, self).__init__()
 
-        self.layer1 = Dense(24, activation='relu', input_shape=(state_size,), kernel_initializer='he_uniform')
-        self.layer2 = Dense(12,  activation='relu', kernel_initializer='he_uniform')
-        self.layer3 = Dense(action_size, activation='relu', kernel_initializer='he_uniform')
+        self.layer1 = Dense(dense1_dims, activation='relu', kernel_initializer='he_uniform')
+        self.layer2 = Dense(dense2_dims,  activation='relu', kernel_initializer='he_uniform')
+        self.Q = Dense(action_size, activation='relu', kernel_initializer='he_uniform')
 
-        self.compile(loss=loss, optimizer=optimizer)
+        self.compile( optimizer=Adam(learning_rate=learning_rate, loss=loss))
 
-    def call(self, inputs, training=False, mask=None):
+    def call(self, state, training=False, mask=None):
         # forward pass, possibly training-specific behavior
-        out1 = self.layer1(inputs)
-        out2 = self.layer2(out1)
-        actions = self.layer3(out2)
-        return actions
+        x = self.layer1(state)
+        x = self.layer2(x)
+        Q = self.Q(x)
+        return Q
+
+
+class DoubleDuelingDQN(Model):
+
+    def __init__(self, action_size, dense1_dims=24, dense2_dims=12, loss='huber_loss', learning_rate=1e-2):
+        super(DoubleDuelingDQN, self).__init__()
+
+        self.layer1 = Dense(dense1_dims, activation='relu', kernel_initializer='he_uniform')
+        self.layer2 = Dense(dense2_dims, activation='relu', kernel_initializer='he_uniform')
+        self.V = Dense(1, activation=None, kernel_initializer='he_uniform') # scalar state value, raw value
+        self.A = Dense(action_size, activation=None, kernel_initializer='he_uniform')
+
+        # possibly compile in agent
+        self.compile(optimizer=Adam(learning_rate=learning_rate, loss=loss))
+
+    def call(self, state, training=None, mask=None):
+        # forward pass has to compute transformation
+        # from A and V to Q
+        x = self.layer1(state)
+        x = self.layer2(x)
+        # separate computation of V and A
+        V = self.V(x)
+        A = self.A(x)
+        # mean more stable than max advantage
+        Q = V + (A - tf.math.reduce_mean(A, axis=1, keepdims=True))
+
+        return Q
+
+    def advantage(self, state):
+        # useful for action selection where we just use advantage stream
+        x = self.layer1(state)
+        x = self.layer2(x)
+        A = self.A(x)
+
+        return A
+
+    def get_config(self):
+        pass
 
 
 if __name__ == '__main__':
 
-    model = DQN((3,5), 4)
+    model = DoubleDuelingDQN(4)
     model.build(input_shape=(3,5))
     model.summary()
