@@ -133,6 +133,7 @@ class DeadlocksController:
         return None
 
     def reset(self, info):
+        self.deadlocks = [False for _ in range(self.env.get_num_agents())]
         info["deadlocks"] = {}
         for a in range(self.env.get_num_agents()):
             info["deadlocks"][a] = False
@@ -147,7 +148,7 @@ class StatisticsController:
 
     def __init__(self, env, env_params):
         self.num_agents = env_params.n_agents
-        self.max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
+        self.max_steps = int(4 * 2 * (env_params.height + env_params.width + (env_params.n_agents / env_params.n_cities)))
         self.action_space = env.action_space[0]
         self.action_count = [0] * self.action_space
         self.normalized_score = []
@@ -162,12 +163,6 @@ class StatisticsController:
         """
         Reset the environment and the statistics
         """
-        self.action_count = [0] * self.action_space
-        self.normalized_score = []
-        self.normalized_score_history = []
-        self.completion_history = []
-        self.completion = 0
-        self.episode = 0
         self.score = 0
         self.step = 0
 
@@ -186,7 +181,7 @@ class StatisticsController:
             else float(sum(info["original_rewards"].values()))
 
         if dones["__all__"] or self.step >= self.max_steps:
-            self._end_episode(info)
+            return self._end_episode(info)
 
     def _end_episode(self, info):
 
@@ -198,7 +193,7 @@ class StatisticsController:
         self.completion_history.append(self.completion)
         self.action_probs = np.round(self.action_count / np.sum(self.action_count), 3)
 
-        self.action_count = [0] * self.env.action_space[0]
+        self.action_count = [0] * self.action_space
         self.episode += 1
         print(
             "\rEpisode {}"
@@ -214,6 +209,11 @@ class StatisticsController:
                 100 * np.mean(self.completion_history),
                 self._format_action_prob()
             ), end=" ")
+        return {'action_count': self.action_count,
+                'normalized_score': self.normalized_score,
+                'normalized_score_history': self.normalized_score_history,
+                'completion_history': self.completion_history,
+                'completion': self.completion}
 
     def _format_action_prob(self):
         """

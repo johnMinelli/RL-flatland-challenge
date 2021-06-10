@@ -22,6 +22,7 @@ class FlatlandRailEnv(RailEnv):
         n_features_per_node = self.obs_builder.observation_dim
         n_nodes = sum([np.power(4, i) for i in range(self.params.observer_params['max_depth'] + 1)])
         self.state_size = n_features_per_node * n_nodes
+        self.stats = {}
 
     def reset(self):
         obs, info = super().reset()  # are useful? regenerate_rail=, regenerate_schedule=
@@ -55,7 +56,8 @@ class FlatlandRailEnv(RailEnv):
         # Rewards progress
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress
-        self.stats_controller.update(action_dict, rewards, dones, info)
+        stats = self.stats_controller.update(action_dict, rewards, dones, info)
+        if stats: self.stats = stats
 
         return obs, rewards, dones, info
 

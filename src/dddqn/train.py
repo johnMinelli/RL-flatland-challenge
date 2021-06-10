@@ -109,25 +109,19 @@ def train(env_params, train_params):
         # Epsilon decay
         policy.decay()
 
-        # # Save checkpoints
-        # if "checkpoint_interval" in train_params and episode % train_params.checkpoint_interval == 0:
-        #     if "save_model_path" in train_params:
-        #         policy.save(train_params.save_model_path + "_ep_{}.pt".format(episode)
-        #                     if "automatic_name_saving" in train_params and train_params.automatic_name_saving else
-        #                     train_params.save_model_path)
-        # # Save model and replay buffer at checkpoint
-        # if episode % args.training.checkpoint == 0:
-        #     policy.save(f'./checkpoints/{training_id}-{episode}')
-        #
-        #     # Save partial model to wandb
-        #     if args.generic.enable_wandb and episode > 0 and episode % args.generic.wandb_checkpoint == 0:
-        #         wandb.save(f'./checkpoints/{training_id}-{episode}.local')
-        #
-        #     # Save replay buffer
-        #     if args.replay_buffer.save:
-        #         policy.save_replay_buffer(
-        #             f'./replay_buffers/{training_id}-{episode}.pkl'
-        #         )
+        # Save model and replay buffer at checkpoint
+        if episode+1 % train_params.training.checkpoints == 0:
+            policy.save(f'./checkpoints/training-{episode}')
+
+            # # Save partial model to wandb
+            # if args.generic.enable_wandb and episode > 0 and episode % args.generic.wandb_checkpoint == 0:
+            #     wandb.save(f'./checkpoints/{training_id}-{episode}.local')
+
+            # # Save replay buffer
+            # if args.replay_buffer.save:
+            #     policy.save_replay_buffer(
+            #         f'./replay_buffers/{training_id}-{episode}.pkl'
+            #     )
 
         # Rendering
         if env_params.render:
@@ -136,5 +130,5 @@ def train(env_params, train_params):
         # Update total time
         training_timer.end()
 
-        if train_params.training.print_stats:
+        if train_params.training.print_stats and episode >= 1:
             logger.write(env, train_params.dddqn, {"step": step_timer, "reset": reset_timer, "learn": learn_timer, "train": training_timer}, episode)

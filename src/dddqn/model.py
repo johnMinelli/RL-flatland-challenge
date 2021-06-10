@@ -26,7 +26,7 @@ class DQN(Model):
         self.layer2 = Dense(dense2_dims,  activation='relu', kernel_initializer='he_uniform')
         self.Q = Dense(action_size, activation='relu', kernel_initializer='he_uniform')
 
-        self.compile( optimizer=Adam(learning_rate=learning_rate, loss=loss))
+        self.compile(optimizer=Adam(learning_rate=learning_rate), loss=loss)
 
     def call(self, state, training=False, mask=None):
         # forward pass, possibly training-specific behavior

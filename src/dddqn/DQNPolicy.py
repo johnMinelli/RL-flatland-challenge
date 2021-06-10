@@ -1,6 +1,7 @@
 from collections import deque
 import numpy as np
 import tensorflow as tf
+import keras
 
 # local imports
 from src.common.Policy import Policy
@@ -35,7 +36,7 @@ class DQNPolicy(Policy):
 
         # Construct DQN models
         self.model = DQN(self.action_size)
-        self.target_model = DQN(self.action_size) # fixed q-targets
+        self.target_model = DQN(self.action_size)  # fixed q-targets
 
     def act(self, state):
         """Returns actions for given state as per current policy (epsilon-greedy).
@@ -65,10 +66,10 @@ class DQNPolicy(Policy):
                     self.learn(experiences)
 
     def save(self, filename):
-        pass
+        self.model.save(filename)
 
     def load(self, filename):
-        pass
+        self.model = keras.models.load_model(filename)
 
     def learn(self, experiences):
         """Update value parameters using given batch of experience tuples.

@@ -60,16 +60,16 @@ class TBLogger:
         :param timers: a dictionary of timers to record
         """
         # Environment parameters
-        self.writer.add_scalar("metrics/score", env.normalized_score, step)
-        self.writer.add_scalar("metrics/accumulated_score", np.mean(env.normalized_score_history), step)
-        self.writer.add_scalar("metrics/completion", env.completion, step)
-        self.writer.add_scalar("metrics/accumulated_completion", np.mean(env.completion_history), step)
-        self.writer.add_histogram("actions/distribution", np.array(env.action_probs), step)
-        self.writer.add_scalar("actions/nothing", env.action_probs[RailEnvActions.DO_NOTHING], step)
-        self.writer.add_scalar("actions/left", env.action_probs[RailEnvActions.MOVE_LEFT], step)
-        self.writer.add_scalar("actions/forward", env.action_probs[RailEnvActions.MOVE_FORWARD], step)
-        self.writer.add_scalar("actions/right", env.action_probs[RailEnvActions.MOVE_RIGHT], step)
-        self.writer.add_scalar("actions/stop", env.action_probs[RailEnvActions.STOP_MOVING], step)
+        self.writer.add_scalar("metrics/score", env.stats['normalized_score'], step)
+        self.writer.add_scalar("metrics/accumulated_score", np.mean(env.stats['normalized_score_history']), step)
+        self.writer.add_scalar("metrics/completion", env.stats['completion'], step)
+        self.writer.add_scalar("metrics/accumulated_completion", np.mean(env.stats['completion_history']), step)
+        self.writer.add_histogram("actions/distribution", np.array(env.stats['action_count']), step)
+        self.writer.add_scalar("actions/nothing", env.stats['action_count'][RailEnvActions.DO_NOTHING], step)
+        self.writer.add_scalar("actions/left", env.stats['action_count'][RailEnvActions.MOVE_LEFT], step)
+        self.writer.add_scalar("actions/forward", env.stats['action_count'][RailEnvActions.MOVE_FORWARD], step)
+        self.writer.add_scalar("actions/right", env.stats['action_count'][RailEnvActions.MOVE_RIGHT], step)
+        self.writer.add_scalar("actions/stop", env.stats['action_count'][RailEnvActions.STOP_MOVING], step)
 
         # Training parameters
         for param_name, param in train_params.__dict__.items():

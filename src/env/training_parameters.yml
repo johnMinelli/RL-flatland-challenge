@@ -34,12 +34,12 @@ dddqn:
   # Number of steps before updating the target network
   update_network_rate: 100
   # update target network
-  tau: 1e-3
+  tau: 0.001
 
 training:
   active: True
   # Checkpoint interval (how often to evaluate and save the model)
-  checkpoint: 500
+  checkpoints: 500
   # Number of episodes to run
   episodes: 7500
   # Path to the model file to load
