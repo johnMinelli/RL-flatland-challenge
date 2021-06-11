@@ -49,7 +49,7 @@ class DQNPolicy(Policy):
         if n <= self.epsilon:
             return np.random.randint(0, self.action_size)
         else:
-            actions = self.model(state)
+            actions = self.model(np.expand_dims(state, axis=0))
             return np.argmax(actions[0])
 
     def step(self, state, action, reward, next_state, done, train=True):
@@ -77,10 +77,12 @@ class DQNPolicy(Policy):
                ======
                    experiences (Tuple): tuple of (s, a, r, s', done) tuples
         """
-        if self.t_step % self.update_network_rate == 0:
-            self.update_target_model()
 
         states, actions, rewards, next_states, dones = experiences # sampled
+
+        # batch of observation in memory is a tuple, need to turn it to array
+        states = np.stack(states, axis=0)
+        next_states = np.stack(next_states, axis=0)
 
         q_pred = self.model(states)
         q_next = tf.math.reduce_max(self.target_model(next_states), axis=1, keepdims=True).numpy()
@@ -94,10 +96,12 @@ class DQNPolicy(Policy):
 
         self.model.train_on_batch(states, q_target) # train on batch trains using a single batch in a single epoch
 
-
+        if self.t_step % self.update_network_rate == 0:
+            self.update_target_model()
 
     def update_target_model(self):
-        self.target_model.set_weights(self.tau * self.model.get_weights() + (1.0 - self.tau) * self.target_model.get_weights())
+        new_weights = list(map(lambda weight_tensor: self.tau * weight_tensor + (1.0 - self.tau * weight_tensor), self.model.get_weights()))
+        self.target_model.set_weights(new_weights)
 
     def decay(self):
         self.epsilon = max(self.epsilon_min, self.epsilon_decay * self.epsilon)
@@ -119,6 +123,6 @@ class DoubleDuelingDQNPolicy(DQNPolicy):
             return np.random.randint(0, self.action_size)
         else:
             # we only use the advantage array for action pick
-            actions = self.model.advantage(state)
+            actions = self.model.advantage(np.expand_dims(state, axis=0))
             return np.argmax(actions[0])
 

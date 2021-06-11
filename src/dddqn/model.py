@@ -1,7 +1,7 @@
-from keras.layers import Dense
-from keras import Model
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Dense
+from tensorflow.keras import Model
 
 
 class DQN(Model):
