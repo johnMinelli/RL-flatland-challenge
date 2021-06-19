@@ -88,7 +88,7 @@ class DQNPolicy(Policy):
         q_next = tf.math.reduce_max(self.target_model(next_states), axis=1, keepdims=True).numpy()
         q_target = np.copy(q_pred) # copy predicted network because of how keras handles loss computation
 
-        # not sure it works depending on dones
+
         for idx, terminal in enumerate(dones):
             if terminal:
                 q_next[idx] = 0.0 # expected value of rewards in terminal state is 0

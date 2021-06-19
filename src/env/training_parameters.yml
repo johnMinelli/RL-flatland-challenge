@@ -55,3 +55,8 @@ evaluating:
   episodes: 20
   # Path to the model file to load
   model: ""
+
+logging:
+  wandb_project: "flatland-dddqn"
+  wandb_entity: "plutone"
+  wandb_tag: "d3qn"

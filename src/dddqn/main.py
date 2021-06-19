@@ -24,12 +24,11 @@ if __name__ == "__main__":
     # ===================================================
     env = p_env.small_env
 
+
+
     observation_tree_depth = 2
     observation_max_path_depth = 30
-    env.observer = TreeObsForRailEnv
     env.observer_params = {"max_depth":observation_tree_depth}
-    env.observation_normalizer = normalize_observation
-    env.predictor = ShortestPathPredictorForRailEnv
     env.predictor_params = {"max_depth":observation_max_path_depth}
     env.observation_radius = 10
 
@@ -40,9 +39,14 @@ if __name__ == "__main__":
         1. / 4.: 0.25
     }
 
+    wandb_config = {**vars(env), **vars(t_env)}
+
+    env.observer = TreeObsForRailEnv
+    env.observation_normalizer = normalize_observation
+    env.predictor = ShortestPathPredictorForRailEnv
     # run
     if t_env.evaluating.active:
         eval(env, t_env)
     else:
-        train(env, t_env)
+        train(env, t_env, wandb_config)
 

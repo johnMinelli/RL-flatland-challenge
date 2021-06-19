@@ -1,14 +1,30 @@
 ﻿import random
 import numpy as np
 from flatland.envs.rail_env import RailEnvActions
+from  flatland.envs.malfunction_generators import MalfunctionParameters
 
 from src.utils.env_utils import create_rail_env, copy_obs
 from src.utils.log_utils import Timer, TBLogger
 from src.dddqn.DQNPolicy import DQNPolicy
 
+try:
+    import wandb
 
-def train(env_params, train_params):
+    use_wandb = True
+except ImportError as e:
+    print("wandb is not installed, TensorBoard on specified directory will be used!")
+    use_wandb = False
+
+
+def train(env_params, train_params, wandb_config=None):
     # Initialize wandb
+    if use_wandb:
+
+        wandb.init(project=train_params.logging.wandb_project,
+                   entity=train_params.logging.wandb_entity,
+                   tags=train_params.logging.wandb_tag,
+                   config=wandb_config,
+                   sync_tensorboard=True)
 
     eps_start = train_params.dddqn.epsilon_start
 
@@ -36,7 +52,7 @@ def train(env_params, train_params):
     learn_timer = Timer()
 
     # TensorBoard writer
-    logger = TBLogger(train_params.training.tensorboard_path)
+    logger = TBLogger(wandb.run.dir if use_wandb else train_params.training.tensorboard_path)
 
     print("\nTraining: {} agents, {}x{} env, {} episodes.\n".format(env_params.n_agents, env_params.width, env_params.height, train_params.training.episodes))
 
