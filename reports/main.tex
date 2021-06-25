@@ -1,8 +1,9 @@
-\documentclass[a4paper,10pt]{report}
+\documentclass[a4paper,14pt]{extreport}
 \usepackage[T1]{fontenc}
 \usepackage[table]{xcolor}
 \usepackage{titlesec}
 \usepackage{graphicx}
+\usepackage{float}
 \usepackage{amsmath}
 %\usepackage{amsthm}
 \usepackage{mathtools}
@@ -24,8 +25,9 @@
 	Deep learning course final project
 }
 
-\author{Lorenzo borelli (\href{mailto:lorenzo.borelli@studio.unibo.it}{lorenzo.borelli@studio.unibo.it}) \\ Giovanni Minelli (\href{mailto:<mail>}{<mail>}) 
-\\ Lorenzo Turrini(\href{mailto:<mail>}{<mail>})}
+\author{Lorenzo borelli (\href{mailto:lorenzo.borelli@studio.unibo.it}{lorenzo.borelli@studio.unibo.it}) 
+\\ Giovanni Minelli (\href{mailto:giovanni.minelli2@studio.unibo.it}{giovanni.minelli2@studio.unibo.it}) 
+\\ Lorenzo Turrini(\href{mailto:lorenzo.turrini4@studio.unibo.it}{lorenzo.turrini4@studio.unibo.it})}
 \date{\today}
 \maketitle
 \newpage
@@ -36,7 +38,23 @@
 \newpage
 
 \chapter{Introduction}
+\input{chapters/intro}
 
 \chapter{The environment}
+\input{chapters/environment}
+
+
+\chapter{Reinforcement learning}
+\input{chapters/rl}
+
+\begin{thebibliography}{9}
+
+	
+	\bibitem{dqn} 
+	Mnih et Al.
+	\textit{Playing Atari with Deep Reinforcement learning}. 
+	arXiv:1312.5602v1, 2013.
+
+\end{thebibliography}
 
 \end{document}
