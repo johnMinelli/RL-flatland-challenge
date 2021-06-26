@@ -1,2 +1,57 @@
 \section{DQN}
-We started by implementing a slight variation of DQN as described in \cite{dqn}, without the use of CNN, but by simply using fully connected layers.
+We started by implementing a slight variation of DQN as described in \cite{dqn}, without the use of CNN, but by simply using fully connected layers with \textbf{ReLU}. \\
+\begin{neuralnetwork} [nodespacing=10mm, layerspacing=25mm,
+			maintitleheight=2.5em, layertitleheight=2.5em,
+			height=5, toprow=false, nodesize=17pt, style={},
+			title={}, titlestyle={}]
+		% nodespacing = vertical spacing between nodes
+		% layerspacing = horizontal spacing between layers
+		% maintitleheight = space reserved for main title
+		% layertitleheight = space reserved for layer titles
+		% height = max nodes in any one layer [REQUIRED]
+		% toprow = top row in node space reserved for bias nodes
+		% nodesize = size of nodes
+		% style = style for internal "tikzpicture" environment
+		% titlestyle = style for main title
+		        \newcommand{\x}[2]{$s_#2$}
+		        \newcommand{\y}[2]{$\hat{Q}_#2$}
+		        \newcommand{\hfirst}[2]{\small $h^{(1)}_#2$}
+		        \newcommand{\hsecond}[2]{\small $h^{(2)}_#2$}
+		        \inputlayer[count=3, bias=true, title=Input\\layer, text=\x]
+		        \hiddenlayer[count=4, bias=false, title=Hidden\\layer 1, text=\hfirst] \linklayers
+		        \hiddenlayer[count=3, bias=false, title=Hidden\\layer 2, text=\hsecond] \linklayers
+		        \outputlayer[count=5, title=Output\\layer, text=\y] \linklayers
+\end{neuralnetwork}
+
+\noindent 
+The units in the hidden layers default to 24 and 12, but the dimensions are fully customizable by the user, while the input layer is just made by the state of the environment, and the output layer has as many layers as there are actions in flatland. The model was also enriched with a few tricks:
+\begin{itemize}
+\item \textbf{Experience replay}:  past experiences are recorded in a memory buffer that is sampled, when needed, to train the network.
+\item \textbf{Fixed Q-targets}: since in a reinforcement learning setting we do not have target values prepared, we would need to use the same network for both the model's weights and for the target, leading to instability of the target values. Thus, we use 2 equal networks, one to just compute the target Q value, and the other for training. Every 100 time step, a tunable hyperparameter, the target network is updated with the current weights of the model. Furthermore, the model itself is updated every 4 time steps, which are customizable as well, so as to increase training speed. 
+\item \textbf{Huber loss}: \cite{huber} explains the advantage in using a loss function that clips the gradient to a certain threshold, to avoid \textbf{exploding gradient}.
+\begin{quote} 
+\centering 
+	\textit{We also found it helpful to clip the error term from the update 
+	$r + \gamma max_a' Q(s',a'; \theta_i^-) - Q(s,a:\theta_i)$ to be between 
+	-1 and 1. Because the absolute value loss function |x| has a derivative of -1
+	 for all negative values of x and a derivative of 1 for all positive values of x, 
+	 clipping the squared error to be between -1 and 1 corresponds 
+	to using an absolute value loss function for errors outside of the (-1,1) 
+	interval.This form of error clipping further improved the stability of the algorithm.}
+\end{quote}
+While the squared loss is too sensitive to outliers, the Huber loss, after a certain threshold, maintains a constant derivative (see Fig 2).
+\begin{figure}[H] 
+\includegraphics[height=80mm, width=100mm, scale=0.5]{chapters/huber.png}
+\centering
+\caption{Huber and squared loss}
+\label{fig:s2} 
+\end{figure}
+\item \textbf{Kaiming initialization}: a method for weights matrix initialization, described in \cite{kaiming}, which draws samples from a standard normal distribution, to avoid \textbf{vanishing} and \textbf{exploding gradient}, and then adjusts this distribution to the ReLU activation function, by doubling the variance, since ReLU halves it w.r.t. to the original standard normal distribution (see Fig 3).
+\begin{figure}[H] 
+\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/relu_dist.png}
+\centering
+\caption{Normal and ReLU distributions}
+\label{fig:s3} 
+\end{figure}
+\end{itemize}
+
