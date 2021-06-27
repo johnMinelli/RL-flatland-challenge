@@ -24,10 +24,10 @@ We started by implementing a slight variation of DQN as described in \cite{dqn},
 \end{neuralnetwork}
 
 \noindent 
-The units in the hidden layers default to 24 and 12, but the dimensions are fully customizable by the user, while the input layer is just made by the state of the environment, and the output layer has as many layers as there are actions in flatland. The model was also enriched with a few tricks:
+The units in the hidden layers default to 24 and 12, but the dimensions are fully customizable by the user, while the input layer is just made by the state of the environment, and the output layer has as many layers as there are actions in flatland. The model was also enriched with a few improvements:
 \begin{itemize}
 \item \textbf{Experience replay}:  past experiences are recorded in a memory buffer that is sampled, when needed, to train the network.
-\item \textbf{Fixed Q-targets}: since in a reinforcement learning setting we do not have target values prepared, we would need to use the same network for both the model's weights and for the target, leading to instability of the target values. Thus, we use 2 equal networks, one to just compute the target Q value, and the other for training. Every 100 time step, a tunable hyperparameter, the target network is updated with the current weights of the model. Furthermore, the model itself is updated every 4 time steps, which are customizable as well, so as to increase training speed. 
+\item \textbf{Fixed Q-targets}: since in a reinforcement learning setting we do not have target values prepared, we would need to use the same network for both the model's weights and for the target, leading to instability of the target values. Thus, we use 2 equal networks, one to just compute the target Q value, and the other for training. Every 100 time step, a tunable hyperparameter, the target network is \textit{soft updated} with a portion of the current weights determined by this formula $$\theta_i = \tau * \theta_i + (1 - \tau) * \theta_i$$ and by the hyperparameter $\tau$. Furthermore, the model itself is updated every 4 time steps, which are customizable as well, so as to increase training speed. 
 \item \textbf{Huber loss}: \cite{huber} explains the advantage in using a loss function that clips the gradient to a certain threshold, to avoid \textbf{exploding gradient}.
 \begin{quote} 
 \centering 
@@ -39,14 +39,14 @@ The units in the hidden layers default to 24 and 12, but the dimensions are full
 	to using an absolute value loss function for errors outside of the (-1,1) 
 	interval.This form of error clipping further improved the stability of the algorithm.}
 \end{quote}
-While the squared loss is too sensitive to outliers, the Huber loss, after a certain threshold, maintains a constant derivative (see Fig 2).
+While the squared loss is too sensitive to outliers, the Huber loss, after a certain threshold, maintains a constant derivative (see \ref{fig:s2}).
 \begin{figure}[H] 
 \includegraphics[height=80mm, width=100mm, scale=0.5]{chapters/huber.png}
 \centering
 \caption{Huber and squared loss}
 \label{fig:s2} 
 \end{figure}
-\item \textbf{Kaiming initialization}: a method for weights matrix initialization, described in \cite{kaiming}, which draws samples from a standard normal distribution, to avoid \textbf{vanishing} and \textbf{exploding gradient}, and then adjusts this distribution to the ReLU activation function, by doubling the variance, since ReLU halves it w.r.t. to the original standard normal distribution (see Fig 3).
+\item \textbf{Kaiming initialization}: a method for weights matrix initialization, described in \cite{kaiming}, which draws samples from a standard normal distribution, to avoid \textbf{vanishing} and \textbf{exploding gradient}, and then adjusts this distribution to the ReLU activation function, by doubling the variance, since ReLU halves it w.r.t. to the original standard normal distribution (see \ref{fig:s3}).
 \begin{figure}[H] 
 \includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/relu_dist.png}
 \centering
@@ -55,3 +55,15 @@ While the squared loss is too sensitive to outliers, the Huber loss, after a cer
 \end{figure}
 \end{itemize}
 
+\subsection{Dueling}
+
+The model was further improved with \textbf{dueling} architecture. The main issue of standard DQN lies in the fact that the \textbf{Bellman operator} tends to overestimate the Q value: as stated in \cite{dueling}, the solution seems to be to separate the computation of the Q value in 2 separate functions, $$Q_{\pi}(s,a) = V_{\pi}(s) + A_{\pi}(s,a) $$ The \textbf{advantage} $A(s,a)$, which computes the  ''advantage'' of taking the action a in state s w.r.t. the other possible actions in that state, and the \textbf{value} $V(s)$ which simply measures how good the state s is, regardless of the possible actions; this is particularly useful whenever we're dealing with environments that are not affected by actions in every state, like Flatland, where actions are only really relevant at switches.
+
+\begin{figure}[H] 
+\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/dueling.jpg}
+\centering
+\caption{Dueling DQN}
+\label{fig:s4} 
+\end{figure}
+\noindent
+Advantage and value still need to be recombined, and since the standard formula doesn't allow to extract A and V from the Q value, \cite{dueling} suggested to force the advantage to be 0 at the chosen best action, which results in the output formula for Q $$Q_{\pi}(s,a) = V_{\pi}(s) + (A_{\pi}(s,a) - max_{a' in A} A(s,a'))$$ It also highlights, however, that empirically, subtracting the average advantage yields better results.
