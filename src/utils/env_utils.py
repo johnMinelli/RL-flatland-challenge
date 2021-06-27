@@ -1,6 +1,7 @@
 
 import copy
 from flatland.envs.malfunction_generators import malfunction_from_params
+from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import rail_from_file, sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
@@ -24,7 +25,7 @@ def create_rail_env(env_params, load_env=""):
     # Observation builder
     predictor = env_params.predictor(**env_params.predictor_params)
     # tree_observer = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
-    tree_observer = env_params.observer(**env_params.observer_params, predictor=predictor)
+    observer = env_params.observer(**env_params.observer_params, predictor=predictor)
 
     return FlatlandRailEnv(
         env_params,
@@ -33,7 +34,7 @@ def create_rail_env(env_params, load_env=""):
         rail_generator = rail_generator,
         schedule_generator = sparse_schedule_generator(env_params.speed_profiles, seed=env_params.seed),
         number_of_agents = env_params.n_agents,
-        obs_builder_object = tree_observer,
+        obs_builder_object = observer,
         malfunction_generator_and_process_data = malfunction_from_params(env_params.malfunction_parameters),
         remove_agents_at_target = True,
         random_seed = env_params.seed

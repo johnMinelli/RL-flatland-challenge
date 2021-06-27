@@ -9,14 +9,14 @@ class NormalizerController:
 
     def __init__(self, env, env_params):
         self.env = env
-        self.max_depth = env_params.observer_params['max_depth']
+        # self.max_depth = env_params.observer_params['max_depth']
         self.observation_radius = env_params.observation_radius
         self.observation_normalizer = env_params.observation_normalizer
 
     def normalize_observations(self, observations):
-        for agent in observations:
-            if observations[agent]:
-                observations[agent] = self.observation_normalizer(observations[agent], self.max_depth, observation_radius=self.observation_radius)
+        # for agent in observations:
+        #     if observations[agent]:
+        #         observations[agent] = self.observation_normalizer(observations[agent], self.max_depth, observation_radius=self.observation_radius)
         return observations
 
 

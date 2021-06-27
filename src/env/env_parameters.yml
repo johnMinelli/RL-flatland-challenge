@@ -29,7 +29,7 @@ small_env:
     max_duration: 50
   rewards:
     stop_penalty: 2.0
-  render: False
+  render: True
 
 
 medium_env:

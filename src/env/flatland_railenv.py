@@ -19,17 +19,18 @@ class FlatlandRailEnv(RailEnv):
         self.stats_controller = StatisticsController(self, env_params)
 
         # Calculate the state size given the depth of the tree observation and the number of features
-        n_features_per_node = self.obs_builder.observation_dim
-        n_nodes = sum([np.power(4, i) for i in range(self.params.observer_params['max_depth'] + 1)])
+        n_features_per_node = 10#self.obs_builder.observation_dim
+        n_nodes = sum([np.power(4, i) for i in range(10 + 1)])
         self.state_size = n_features_per_node * n_nodes
         self.stats = {}
 
     def reset(self):
-        obs, info = super().reset()  # are useful? regenerate_rail=, regenerate_schedule=
+        self.obs_builder.set_env(self)
+        obs, info = super().reset()  # regenerate_rail=, regenerate_schedule= are useful?
 
         # Reset rendering
         if self.params.render:
-            self.env_renderer = RenderTool(self.env, show_debug=True, screen_height=1080, screen_width=1920, gl="PGL")
+            self.env_renderer = RenderTool(self, show_debug=True, screen_height=1080, screen_width=1920, gl="PGL")
             self.env_renderer.set_new_rail()
         # Normalization phase
         obs = self.norm_controller.normalize_observations(obs)

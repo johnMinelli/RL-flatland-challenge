@@ -18,7 +18,6 @@ def train(env_params, train_params):
 
     # Setup the environment
     env = create_rail_env(env_params)
-    env.reset()
 
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
