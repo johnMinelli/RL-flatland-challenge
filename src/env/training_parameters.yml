@@ -18,6 +18,8 @@ replay_buffer:
   load: ""
   # Save replay buffer at each checkpoint
   save: False
+  # priority or random
+  priority: True
 
 dddqn:
   # Discount rate

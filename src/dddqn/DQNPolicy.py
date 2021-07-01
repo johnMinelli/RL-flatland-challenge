@@ -6,7 +6,7 @@ import keras
 # local imports
 from src.common.Policy import Policy
 from src.dddqn.model import DQN, DoubleDuelingDQN
-from src.dddqn.experience_replay import ReplayBuffer
+from src.dddqn.experience_replay import UniformReplayBuffer, PrioritizedReplay
 
 
 class DQNPolicy(Policy):
@@ -19,8 +19,13 @@ class DQNPolicy(Policy):
         self.action_size = action_size
 
         # memory parameters
-        self.memory = ReplayBuffer(train_params.replay_buffer.batch_size, train_params.replay_buffer.buffer_size)
 
+        self.priority = train_params.replay_buffer.priority
+        if not self.priority:
+            self.memory = UniformReplayBuffer(train_params.replay_buffer.batch_size,
+                                              train_params.replay_buffer.buffer_size)
+        else:
+            self.memory = PrioritizedReplay(1000, train_params.replay_buffer.batch_size)
         # Hyperparameters
         self.gamma = train_params.dddqn.gamma
         # potremmo separare selection policy in altro file
@@ -49,12 +54,24 @@ class DQNPolicy(Policy):
         if n <= self.epsilon:
             return np.random.randint(0, self.action_size)
         else:
-            actions = self.model(np.expand_dims(state, axis=0))
+
+            actions = self.model(state.reshape(-1, 1))
             return np.argmax(actions[0])
 
     def step(self, state, action, reward, next_state, done, train=True):
         # Save experience in replay memory
-        self.memory.add((state, action, reward, next_state, done))
+        if not self.priority:
+            self.memory.add((state, action, reward, next_state, done))
+        else:
+            # q value for current action
+            q_pred = self.model(state.reshape(-1,1))[:,action]
+            # best q value w.r.t. to actions
+            q_new = reward * self.gamma * tf.math.reduce_max(self.target_model(next_state.reshape(-1,1)), axis=1, keepdims=True)
+
+            td_error = tf.math.reduce_sum(abs(q_new - q_pred)).numpy().astype(np.float32)
+            self.memory.add((state, action, reward, next_state, done),td_error)
+
+
 
         # Learn every update_rate time steps.
         self.t_step = (self.t_step + 1) % self.update_rate
@@ -86,8 +103,7 @@ class DQNPolicy(Policy):
 
         q_pred = self.model(states)
         q_next = tf.math.reduce_max(self.target_model(next_states), axis=1, keepdims=True).numpy()
-        q_target = np.copy(q_pred) # copy predicted network because of how keras handles loss computation
-
+        q_target = np.copy(q_pred)
 
         for idx, terminal in enumerate(dones):
             if terminal:
