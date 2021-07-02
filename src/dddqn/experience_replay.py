@@ -228,24 +228,19 @@ class PrioritizedReplay(ReplayBuffer):
         is_weight = np.power(self.tree.n_entries * sampling_probabilities, -self.per_beta)
         # Rescaling weights from 0 to 1
         is_weight /= is_weight.max()
-        # so batches are a list of batch_size tuples, each tuple is 5 data elements, state, actions, reward, next, done
-
-        states = []
+        # batches are a list of batch_size tuples, each tuple is 5 data elements, state, actions, reward, next, done
+        states= []
         actions = []
         rewards = []
         next_states = []
         dones = []
-        '''da rivedere
-        states = torch.from_numpy(self.v_stack_impr([e.state for e in batch if e is not None])) \
-            .float().to(self.device)
-        actions = torch.from_numpy(self.v_stack_impr([e.action for e in batch if e is not None])) \
-            .long().to(self.device)
-        rewards = torch.from_numpy(self.v_stack_impr([e.reward for e in batch if e is not None])) \
-            .float().to(self.device)
-        next_states = torch.from_numpy(self.v_stack_impr([e.next_state for e in batch if e is not None  ])) \
-            .float().to(self.device)
-        dones = torch.from_numpy(self.v_stack_impr([e.done for e in batch if e is not None]).astype(np.uint8)) \
-            .float().to(self.device)'''
+        for single_batch in batch:
+            states.append(single_batch[0])
+            actions.append(single_batch[1])
+            rewards.append(single_batch[2])
+            next_states.append(single_batch[3])
+            dones.append(single_batch[4])
+
 
         #return (states, actions, rewards, next_states, dones), idxs, is_weight
         return (states, actions, rewards, next_states, dones)

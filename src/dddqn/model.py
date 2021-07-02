@@ -5,16 +5,7 @@ from tensorflow.keras import Model
 
 
 class DQN(Model):
-    """
-    Implements a vanilla deep q network, with simple dense layers
-    using huber loss for stability, avoiding exploding gradient ( according to <Human-level control through deep reinforcement
-    learning>, Mnih et Al. 2015), by clipping the error term in the Q value update to -1,1 interval
-    and He initialization for weights, which is efficient with ReLU (<Delving Deep into Rectifiers:
-    Surpassing Human-Level Performance on ImageNet Classification>, Kaiming He et Al.), which solves vanishing and
-    exploding gradient by sampling weights from a standard normal distribution and then uses a factor to double the variance
-    to address ReLU non linearity
 
-    """
 
     def get_config(self):
         pass
@@ -46,8 +37,8 @@ class DoubleDuelingDQN(Model):
         self.V = Dense(1, activation=None, kernel_initializer='he_uniform') # scalar state value, raw value
         self.A = Dense(action_size, activation=None, kernel_initializer='he_uniform')
 
-        # possibly compile in agent
-        self.compile(optimizer=Adam(learning_rate=learning_rate, loss=loss))
+
+        self.compile(optimizer=Adam(learning_rate=learning_rate), loss=loss)
 
     def call(self, state, training=None, mask=None):
         # forward pass has to compute transformation
@@ -75,7 +66,11 @@ class DoubleDuelingDQN(Model):
 
 
 if __name__ == '__main__':
-
-    model = DoubleDuelingDQN(4)
-    model.build(input_shape=(3,5))
-    model.summary()
+    import numpy as np
+    x = np.random.rand(4, 231)
+    print(x.shape)
+    model = DQN(4)
+    model.build(input_shape=(None, 231))
+    print(model.summary())
+    y = model(x)
+    print(y.shape)

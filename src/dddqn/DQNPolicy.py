@@ -43,6 +43,10 @@ class DQNPolicy(Policy):
         self.model = DQN(self.action_size)
         self.target_model = DQN(self.action_size)  # fixed q-targets
 
+        # do not specify batch size, only input dimension
+        self.model.build(input_shape=(None, self.state_size))
+        self.target_model.build(input_shape=(None, self.state_size))
+
     def act(self, state):
         """Returns actions for given state as per current policy (epsilon-greedy).
                 Params
@@ -55,7 +59,7 @@ class DQNPolicy(Policy):
             return np.random.randint(0, self.action_size)
         else:
 
-            actions = self.model(state.reshape(-1, 1))
+            actions = self.model(state.reshape(1, -1))
             return np.argmax(actions[0])
 
     def step(self, state, action, reward, next_state, done, train=True):
@@ -64,9 +68,9 @@ class DQNPolicy(Policy):
             self.memory.add((state, action, reward, next_state, done))
         else:
             # q value for current action
-            q_pred = self.model(state.reshape(-1,1))[:,action]
+            q_pred = self.model(state.reshape(1, -1))[:,action]
             # best q value w.r.t. to actions
-            q_new = reward * self.gamma * tf.math.reduce_max(self.target_model(next_state.reshape(-1,1)), axis=1, keepdims=True)
+            q_new = reward * self.gamma * tf.math.reduce_max(self.target_model(next_state.reshape(1, -1)), axis=1, keepdims=True)
 
             td_error = tf.math.reduce_sum(abs(q_new - q_pred)).numpy().astype(np.float32)
             self.memory.add((state, action, reward, next_state, done),td_error)
