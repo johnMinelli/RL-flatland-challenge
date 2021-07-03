@@ -242,12 +242,8 @@ class PrioritizedReplay(ReplayBuffer):
             dones.append(single_batch[4])
 
 
-        #return (states, actions, rewards, next_states, dones), idxs, is_weight
-        return (states, actions, rewards, next_states, dones)
-    """
-    def step(self):
-        self.beta = np.min([1. - self.e, self.beta + self.beta_increment_per_sampling])
-    """
+        return (states, actions, rewards, next_states, dones), idxs, is_weight
+
 
     def update(self, idx, td_error):
         """

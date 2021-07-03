@@ -82,9 +82,14 @@ class DQNPolicy(Policy):
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if self.memory.can_sample():
-                experiences = self.memory.sample()
+                if not self.priority:
+                    experiences = self.memory.sample()
+                    indexes = None
+                    weights = None
+                else:
+                    experiences, indexes, weights = self.memory.sample()
                 if train:
-                    self.learn(experiences)
+                    self.learn(experiences, indexes, weights)
 
     def save(self, filename):
         self.model.save(filename)
@@ -92,11 +97,12 @@ class DQNPolicy(Policy):
     def load(self, filename):
         self.model = keras.models.load_model(filename)
 
-    def learn(self, experiences):
+    def learn(self, experiences, indexes=None, weights=None):
         """Update value parameters using given batch of experience tuples.
                Params
                ======
                    experiences (Tuple): tuple of (s, a, r, s', done) tuples
+                   indexes, weights
         """
 
         states, actions, rewards, next_states, dones = experiences # sampled
@@ -113,8 +119,13 @@ class DQNPolicy(Policy):
             if terminal:
                 q_next[idx] = 0.0 # expected value of rewards in terminal state is 0
             q_target[idx, actions[idx]] = rewards[idx] * self.gamma*q_next[idx]
+            if self.priority:
+                # update priority of data in replay memory with td error
+                self.memory.update(indexes[idx], tf.math.reduce_sum(abs(q_target[idx] - q_pred[idx])).numpy().astype(np.float32))
 
-        self.model.train_on_batch(states, q_target) # train on batch trains using a single batch in a single epoch
+        # train on batch trains using a single batch in a single gradient update
+        # and apply importance sampling weights
+        self.model.train_on_batch(states, q_target, sample_weight=weights)
 
         if self.t_step % self.update_network_rate == 0:
             self.update_target_model()
