@@ -3,6 +3,7 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
 from src.utils.observations import ObserverDAG
+from src.utils.predictor import GraphPredictor
 from src.utils.utils import Struct
 from src.utils.default_observation import normalize_observation
 from src.dddqn.train import train
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     # env.observer_params = {"max_depth":observation_tree_depth}
     env.observer_params = {}
     env.observation_normalizer = normalize_observation
-    env.predictor = ShortestPathPredictorForRailEnv
+    env.predictor = GraphPredictor
     env.predictor_params = {"max_depth":observation_max_path_depth}
     env.observation_radius = 10
 
