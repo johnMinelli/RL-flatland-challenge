@@ -8,6 +8,20 @@ import heapq
 
 from src.env.flatland_railenv import FlatlandRailEnv
 
+# handle get many to call get; add priority index to call in that order low to high;
+# in get compute observation graph only on need otherwise reuse the previous structure but recompute deadlock info each time
+# handle deadlock in pre start switch as two nodes graph
+# start
+# is_target
+# is_dead_end on post node
+# nodo causa deadlock informazioni dell'agente adversary
+# casi limite quando sei davanti all'arrivo
+'dist_own_target_encountered '
+'dist_position_to_conflict '
+'dist_min_to_target '
+'num_agents_malfunctioning '
+'speed_min_fractional '
+
 TRANS = [
     Grid4TransitionsEnum.NORTH,
     Grid4TransitionsEnum.EAST,
@@ -33,6 +47,7 @@ class ObserverDAG(ObservationBuilder):
             self.predictor.reset(self.graph)
 
     def get_many(self, handles=None):
+        #TODO what does the predictor do?
         self.predictions = self.predictor.get()
 
         self.predicted_pos = {}
@@ -44,6 +59,8 @@ class ObserverDAG(ObservationBuilder):
             self.predicted_pos.update({t: coordinate_to_position(self.env.width, pos_list)})
         observations = {}
 
+        # TODO compute priority ordered list
+
         # Collect all the different observation for all the agents
         for h in handles:
             observations[h] = self.get(h)
@@ -51,52 +68,62 @@ class ObserverDAG(ObservationBuilder):
 
     def get(self, handle):
         di_graph = nx.MultiDiGraph() # (node, enter_dir) ----cost, out_dir---->
-        working_graph = self.graph.copy()
+        working_graph = self.graph
         edges = []
+        other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
+                                 for iter_handle, a  in self.env.agents.items() if iter_handle != handle]
+        steps = 0
+        deadlock = False
 
         start_pos = self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position
         start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else self.env.agents[handle].direction
-        while not self._is_switch(*start_pos):
+        while not self._is_switch(*start_pos, start_dir):
+            if (x, y, self._opposite_dir(start_dir)) in other_agents_position: deadlock = True
             if self._is_dead_end(*start_pos): start_dir = self._opposite_dir(start_dir)
             x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir) # TODO error
             start_pos = (x, y)
+            steps += 1
         di_graph.add_node((*start_pos, start_dir))
-        # remove unfeasible direction
-        feasible_destinations = working_graph.nodes[start_pos]["trans_node"][start_dir]
-        for destination, attr in working_graph[start_pos].items():
-            if not destination in feasible_destinations:
-                working_graph.remove_edge(start_pos, destination)
-        # add real target in graph
-        target = self.env.agents[handle].target
-        di_graph.add_node(target)
-        # start exploration and building of DiGraph
-        # add switches near agent's target in DiGraph
-        ending_points = []
-        for _, n in self.graph.nodes.items():
-            if handle in n['targets']:
-                ending_points.append(n)
-                cost, out_dir = n['targets'][handle]
-                for access in range(4): # don't you have already it in the node?
-                    if self.env.rail.get_transitions(n[1], n[0], TRANS[access])[out_dir] == 1:
-                        node = (*n, access)
-                        di_graph.add_node(node)
-                        edges.append((node, target, {'weight': cost, 'dir': out_dir}))
-        #-explore target to agent senza altri agenti
-        self._build_paths_in_directed_graph(working_graph, di_graph, start_pos, start_dir, ending_points)
-        #-explore target to agent con altri agenti
-        for a in self.env.agents:
-            #remove busy edges from working_graph
-            pos_x, pos_y = a.initial_position if a.position is None else a.position
-            dir = a.initial_direction if a.position is None else a.direction
-            while True:
-                pos_x, pos_y, dir = self.get_next_oriented_pos(pos_x, pos_y, dir)
-                if self._is_dead_end(pos_x, pos_y): dir = self._opposite_dir(dir)
-                if self._is_switch(pos_x, pos_y): break
-            t = self.graph.nodes[(pos_x, pos_y)]["trans_node"][:self._opposite_dir(dir)]
-            working_graph.remove_edge((pos_x, pos_y), t[t != (0, 0)])
-        self._build_paths_in_directed_graph(working_graph, di_graph, start_pos, start_dir, ending_points)
-        #explore each node of (di or not di?)graph for paths to loose time
+        if deadlock:
+            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True})])
+            return di_graph
 
+        if steps > 1:
+            # reuse previous observation structure
+            di_graph = self.env.agents[handle] # TODO
+        else:
+            # add real target in graph
+            target = self.env.agents[handle].target
+            di_graph.add_node(target)
+            # start exploration and building of DiGraph
+            # add switches near agent's target in DiGraph
+            ending_points = []
+            for _, n in self.graph.nodes.items():
+                if handle in n['targets']:
+                    ending_points.append(n)
+                    cost, out_dir = n['targets'][handle]
+                    for access in range(4): # don't you have already it in the node?
+                        if self.env.rail.get_transitions(n[1], n[0], TRANS[access])[out_dir] == 1:
+                            node = (*n, access)
+                            di_graph.add_node(node)
+                            edges.append((node, target, {'weight': cost, 'dir': out_dir}))
+            #-explore target to agent senza altri agenti
+            self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
+            #-explore target to agent con altri agenti
+            # TODO access deadlock detector to exclude bad nodes (to save computation)
+            for a in self.env.agents: # TODO only agents not deadlocked
+                #remove busy edges from working_graph
+                pos_x, pos_y = a.initial_position if a.position is None else a.position
+                dir = a.initial_direction if a.position is None else a.direction
+                while True:
+                    pos_x, pos_y, dir = self.get_next_oriented_pos(pos_x, pos_y, dir)
+                    if self._is_dead_end(pos_x, pos_y): dir = self._opposite_dir(dir)
+                    if self._is_switch(pos_x, pos_y): break
+                t = self.graph.nodes[(pos_x, pos_y)]["trans_node"][:self._opposite_dir(dir)]
+                working_graph.remove_edge((pos_x, pos_y), t[t != (0, 0)])
+            self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
+
+        # add attributes to nodes based on conflicts
 
         observation = np.zeros(10)
 
@@ -168,12 +195,13 @@ class ObserverDAG(ObservationBuilder):
 
         self.graph.add_weighted_edges_from(edges)
         print(nx.to_dict_of_dicts(self.graph))
+        self.graph = self.graph.to_directed()
         nx.freeze(self.graph)
 
-    def _build_paths_in_directed_graph(self, undirected_graph, directed_graph, start_pos, start_dir, ending_points):
-        try: _, path = nx.multi_source_dijkstra(undirected_graph, ending_points, start_pos)
-        except: return
-        while not self._shortest_path_in_digraph(directed_graph, path):
+    def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points):
+        path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir)
+        if path is None: return
+        while not self._is_path_in_graph(directed_graph, path):
             current_node = None
             current_orientation = start_dir
             i = 0
@@ -181,78 +209,84 @@ class ObserverDAG(ObservationBuilder):
             while i < len(path):
                 next_node = path[i]
                 if current_node is None: current_node = next_node; i += 1; continue
-                cost = undirected_graph[current_node][next_node]["weight"]
-                directed_node_destinations = self.graph.nodes[current_node]["trans_node"][current_orientation]
-                if current_node in directed_node_destinations and not next_node in directed_node_destinations:
-                    # immediate dead_end
-                    node_exit_dir = directed_node_destinations.index(current_node)
-                    cost = self.graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir]
-                    directed_node_destinations = self.graph.nodes[current_node]["trans_node"][self._opposite_dir(current_orientation)]
-                    directed_graph.add_node((*current_node, self._opposite_dir(current_orientation)))  # TODO remove if no info for node
-                    directed_graph.add_edge((*current_node, current_orientation),(*current_node, self._opposite_dir(current_orientation)), {'weight': cost})
-                    current_orientation = self._opposite_dir(current_orientation)
-                if next_node in directed_node_destinations:
+                node_directed_destinations = exploration_graph[current_node]["trans_node"][current_orientation]
+
+                if next_node in node_directed_destinations:
                     # transition is valid continue to iterate
-                    node_exit_dir = directed_node_destinations.index(next_node)
-                    next_orientation = undirected_graph.edges[(current_node, next_node)]["dir"][next_node]
+                    node_exit_dir = node_directed_destinations.index(next_node)
+                    next_orientation = exploration_graph.edges[(current_node, next_node)]["dir"][next_node]
+                    cost, destination, dead_end_flag = self._update_graph_until_switch(exploration_graph,
+                                                                                       current_node, current_orientation,
+                                                                                       next_node, next_orientation)
                     directed_graph.add_node((*next_node, next_orientation))
-                    directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),{'weight': cost})
+                    directed_graph.add_edge((*current_node, current_orientation), destination,{'weight': cost, "out_dir": node_exit_dir})
                     # update iterators and continue
-                    current_node = next_node
-                    current_orientation = next_orientation
+                    current_node = destination[0:2]
+                    current_orientation = destination[2]
                     i += 1
                     continue
+                elif current_node in node_directed_destinations:
+                    # immediate dead_end from current_node
+                    node_exit_dir = node_directed_destinations.index(current_node)
+                    cost, destination, dead_end_flag  = self._update_graph_until_switch(exploration_graph,
+                                                                                        current_node, current_orientation,
+                                                                                        current_node, self._opposite_dir(current_orientation))
+                    directed_graph.add_node(destination, **{"dead_end": True})
+                    directed_graph.add_edge((*current_node, current_orientation), destination,
+                                            {'weight': cost, "out_dir": node_exit_dir})
+                    # update iterators and continue flow
+                    current_node = destination[0:2]
+                    current_orientation = destination[2]
+                    continue
                 else:
-                    # this case you must have a single transition possible from your orientation, proceed till a decision and correct the path
-                    node_exit_dir = None
-                    destination = None
-                    for node_exit_dir, destination in enumerate(directed_node_destinations):
-                        if destination != (0, 0): break
-                    if self.graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir] != 0:
-                        # previously detected a dead_end, just compile the DiGraph
-                        next_orientation = undirected_graph.edges[(current_node, destination)]["dir"][destination]
-                        total_cost = self.graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir]
-                        partial_cost = undirected_graph.edges[(current_node, destination)]["weight"]
-                        dead_end_cost = ((total_cost - (partial_cost * 2)) / 2) - 1
-                        self.add_dead_end_path_in_graph(
-                            (*current_node, current_orientation), partial_cost, (*destination, next_orientation),
-                            dead_end_cost
-                            (*destination, self._opposite_dir(next_orientation)),
-                            (*current_node, self._opposite_dir(current_orientation))
-                        )
-                        # update iterators and continue
-                        current_orientation = self._opposite_dir(current_orientation)
-                        continue
-                    # check dead_end presence
+                    # the transition for this direction is invalid
+                    exploration_graph.remove_edge(current_node, next_node)
+                    # this case you must have at least a transition possible from your orientation
                     unreachable_node = next_node
-                    next_node = destination
-                    next_orientation = undirected_graph.edges[(current_node, next_node)]["dir"][next_node]
-                    cost = undirected_graph.edeges[(current_node, next_node)]["weight"]
-                    next_node_destinations = self.graph.nodes[next_node]["trans_node"][next_orientation]
-                    if next_node in next_node_destinations:
-                        # dead_end found
-                        next_node_exit_dir = directed_node_destinations.index(next_node)
-                        partial_cost = cost
-                        dead_end_cost = self.graph.nodes[next_node]["dead_end"][next_orientation][next_node_exit_dir]
-                        self.graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir] = (partial_cost * 2) + dead_end_cost * 2 - 1
-                        self.add_dead_end_path_in_graph(
-                            (*current_node, current_orientation), partial_cost, (*next_node, next_orientation),
-                            dead_end_cost
-                            (*next_node, self._opposite_dir(next_orientation)),
-                            (*current_node, self._opposite_dir(current_orientation))
-                        )
-                    else:
-                        # the transition for this direction is invalid
-                        undirected_graph.remove_edge((current_node, unreachable_node))
-                    # re launch dijkstra
-                    try: _, path = nx.multi_source_dijkstra(undirected_graph, ending_points, next_node)
-                    except: break
-                    path = path[::-1]
+                    exploration_node = None
+                    next_node = None
+                    for node_exit_dir, destination_node in enumerate(node_directed_destinations):
+                        if destination_node == (0, 0): continue
+                        
+                        if unreachable_node in exploration_graph.nodes[current_node]["trans_node"][self._opposite_dir(node_exit_dir)]:
+                            # transition which eventually with a dead and can take you to the unreachable_node
+                            next_orientation = exploration_graph.edges[(current_node, destination_node)]["dir"][destination_node]
+                            cost, destination, dead_end_flag  = self._update_graph_until_switch(exploration_graph,
+                                                                                                current_node, current_orientation,
+                                                                                                destination_node, next_orientation)
+                            destination_node = destination[0:2]
+                            next_orientation = destination[2]
+                            next_node_directed_destinations = exploration_graph.nodes[destination_node]["trans_node"][next_orientation]
+                            if destination_node in next_node_directed_destinations:
+                                # (path resolution) immediate dead_end
+                                directed_graph.add_edge((*current_node, current_orientation),(*destination_node, next_orientation),
+                                                        {'weight': cost, "out_dir": node_exit_dir})
+                                dead_end_cost, dead_end_destination, _ = self._update_graph_until_switch(exploration_graph,
+                                                                                                      destination_node, next_orientation,
+                                                                                                      destination_node, self._opposite_dir(next_orientation))
+                                directed_graph.add_node(dead_end_destination, **{"dead_end": True})
+                                directed_graph.add_edge((*destination_node, next_orientation), dead_end_destination,
+                                                        {'weight': dead_end_cost, "out_dir": node_directed_destinations.index(destination_node)})
+                            # else:
+                                # (path resolution) 1 step ahead dead_end
+                        elif exploration_node is None: exploration_node = destination_node
+                        if next_node is None: next_node = destination_node
+
+                    # need a new dijkstra iteration
+                    next_node = next_node if exploration_node is None else exploration_node
+                    next_orientation = exploration_graph.edges[(current_node, next_node)]["dir"][next_node]
+                    cost = exploration_graph.edges[(current_node, next_node)]["weight"]
+                    node_exit_dir = node_directed_destinations.index(next_node)
+                    directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
+                                            {'weight': cost, "out_dir": node_exit_dir})
+                    path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
+                    if path is None: return
                     current_node = None
                     current_orientation = next_orientation
                     i = 0
-            try: _, path = nx.multi_source_dijkstra(undirected_graph, ending_points, start_pos)
-            except: break
+                    path = path[::-1]
+            path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
+            if path is None: return
 
     def get_next_oriented_pos(self, x, y, orientation):
         """
@@ -312,7 +346,6 @@ class ObserverDAG(ObservationBuilder):
         trans_node = np.empty(len(trans_node_l), dtype=object)
         trans_node[:] = trans_node_l
         dead_end = np.zeros((4,4))
-        costs = np.zeros((4,4))
         if mirror_direction:
             # per ogni posizione con sbocco in _opposite_dir(dir) ha prev_node
             dir = self._opposite_dir(dir)
@@ -332,27 +365,69 @@ class ObserverDAG(ObservationBuilder):
                     if t == (0, 0): trans_node[arry][arrx] = old_attr["trans_node"][arry][arrx]
             if len(targets) != 0:
                 targets = {**old_attr["targets"], **targets}
-        return {"trans": trans, "trans_node": trans_node, "costs": costs, "targets": targets}
+        return {"trans": trans, "trans_node": trans_node, "dead_end": dead_end, "targets": targets}
 
     def _opposite_dir(self, direction):
         return (direction+2) % 4
 
-    def _is_switch(self, x, y):
-        all_trans = [self.env.rail.get_transitions(y, x, TRANS[dir]).count(1) for dir in range(4)]
+    def _is_switch(self, x, y, dir=None):
+        if dir is None:
+            all_trans = [self.env.rail.get_transitions(y, x, TRANS[dir]).count(1) for dir in range(4)]
+        else:
+            all_trans = self.env.rail.get_transitions(y, x, TRANS[dir]).count(1)
         return np.max(all_trans) > 1
 
     def _is_dead_end(self, x, y):
         return self.env.rail.is_dead_end((y, x))
 
-    def _shortest_path_in_digraph(self, di_graph, path):
+    def _is_path_in_graph(self, di_graph, path):
         undirected_nodes = [(n[0:1]) for n in di_graph.nodes]
         return np.all([node in undirected_nodes for node in path])
+        nx.find_cycle()
 
-    def add_dead_end_path_in_graph(self,di_graph, a_front, ab_cost, b_front, bb_cost, b_back, a_back):
-        di_graph.add_node(b_front)
-        di_graph.add_edge(a_front, b_front, {'weight': ab_cost})
-        # get back through the dead_end
-        di_graph.add_node(b_back)
-        di_graph.add_edge(b_front, b_back, {'weight': bb_cost})
-        di_graph.add_node(a_back)
-        di_graph.add_edge(b_back, a_back, {'weight': ab_cost})
+    def _update_graph_until_switch(self, undirected_graph, current_node, current_orientation, next_node, next_orientation):
+        # find switch
+        # update undirected graph with new edges end remove the one not relevant (no switch)
+        # update transition matrix of current_node in row current_orientation with real node switch
+        start_node_exit_dir = undirected_graph[current_node]["trans_node"][current_orientation].index(next_node)
+        if current_node == next_node:
+            cost = self.graph.nodes[current_node]["dead_end"][current_orientation][start_node_exit_dir] + 1
+        else:
+            cost = undirected_graph.edges[(current_node, next_node)]["weight"] + 1
+        undirected_graph.remove_edge(current_node, next_node)
+
+        node_exit_dir = None
+        dead_end = False
+        while not self._is_switch(*next_node, next_orientation):
+            next_node_directed_destinations = undirected_graph[next_node]["trans_node"][next_orientation]
+            for node_exit_dir, destination_node in enumerate(next_node_directed_destinations):
+                if destination_node != (0, 0):
+                    # remove original edges
+                    undirected_graph.remove_edge(next_node, destination_node)
+                    if next_node == destination_node:
+                        dead_end = True
+                        next_orientation = self._opposite_dir(next_orientation)
+                        cost += undirected_graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir] + 1
+                    else:
+                        next_orientation = undirected_graph.edges[(next_node, destination_node)]["dir"][destination_node]
+                        cost += undirected_graph.edges[(current_node, next_node)]["weight"] + 1
+                    next_node = destination_node
+                    break
+            if current_node == next_node:
+                break
+        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation), {'weight': cost, "out_dir": node_exit_dir})
+        undirected_graph[current_node]["trans_node"][current_orientation][start_node_exit_dir] = next_node
+        return cost, (*next_node, next_orientation), dead_end
+
+    def _get_shorthest_path(self, graph, sources, target, allowed_target_dir):
+        reduced_graph = graph.copy()
+        # remove unfeasible directions
+        feasible_destinations = reduced_graph.nodes[target]["trans_node"][allowed_target_dir]
+        for destination, attr in reduced_graph[target].items():
+            if not destination in feasible_destinations:
+                reduced_graph.remove_edge(destination, target)
+        try:
+            _, path = nx.multi_source_dijkstra(graph, sources, target)
+            return path
+        except:
+            return None
