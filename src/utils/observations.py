@@ -35,6 +35,8 @@ class ObserverDAG(ObservationBuilder):
         super().__init__()
         self.predictor = predictor
         self.graph = None
+        self.observations = dict()
+        self.prev_observations = dict()
 
     def set_env(self, env: FlatlandRailEnv):
         super().set_env(env)
@@ -47,54 +49,52 @@ class ObserverDAG(ObservationBuilder):
             self.predictor.reset(self.graph)
 
     def get_many(self, handles=None):
-        #TODO what does the predictor do?
-        self.predictions = self.predictor.get()
+        self.predictions = self.predictor.get_many()
 
-        self.predicted_pos = {}
-        for t in range(len(self.predictions[0])):
-            pos_list = []
-            for a in handles:
-                pos_list.append(self.predictions[a][t][1:3])
-            # We transform (x,y) coordinates to a single integer number for simpler comparison
-            self.predicted_pos.update({t: coordinate_to_position(self.env.width, pos_list)})
-        observations = {}
-
-        # TODO compute priority ordered list
+        # compute priority ordered list
+        self.prioritized_agents = self._rank_agents()
 
         # Collect all the different observation for all the agents
-        for h in handles:
-            observations[h] = self.get(h)
-        return observations
+        for h in self.prioritized_agents:
+            self.observations[h] = self.get(h)
+        self.prev_observations = self.observations
+        return self.observations
 
-    def get(self, handle):
-        di_graph = nx.MultiDiGraph() # (node, enter_dir) ----cost, out_dir---->
+    def get(self, handle=0):
+        di_graph = nx.MultiDiGraph()  # (node, enter_dir) ----cost, out_dir---->
         working_graph = self.graph
-        edges = []
-        other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
-                                 for iter_handle, a  in self.env.agents.items() if iter_handle != handle]
-        steps = 0
-        deadlock = False
 
-        start_pos = self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position
+        other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
+                                 for iter_handle, a  in enumerate(self.env.agents) if iter_handle != handle]
+        steps = 0
+        target_flag = False
+        deadlock_flag = False
+
+        # TODO still to define how you don't call the model (for a single agent) when you don't have to
+
+        start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position)[::-1]
         start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else self.env.agents[handle].direction
+        target = self.env.agents[handle].target[::-1]
         while not self._is_switch(*start_pos, start_dir):
-            if (x, y, self._opposite_dir(start_dir)) in other_agents_position: deadlock = True
+            if start_pos == target: target_flag = True; break
+            if (*start_pos, self._opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True
             if self._is_dead_end(*start_pos): start_dir = self._opposite_dir(start_dir)
-            x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir) # TODO error
+            x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir)
             start_pos = (x, y)
             steps += 1
-        di_graph.add_node((*start_pos, start_dir))
-        if deadlock:
+        di_graph.add_node((*start_pos, start_dir), **{"start": True}) # TODO add info agent
+        if target_flag:
+            di_graph.update(nodes=[((*start_pos, start_dir), {"target": True})])
+            return di_graph
+        if deadlock_flag:
             di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True})])
             return di_graph
 
-        if steps > 1:
-            # reuse previous observation structure
-            di_graph = self.env.agents[handle] # TODO
+        if steps > 1:  # reuse previous observation structure
+            di_graph = self.prev_observations[handle]
         else:
             # add real target in graph
-            target = self.env.agents[handle].target
-            di_graph.add_node(target)
+            di_graph.add_node(target, **{"target":True})
             # start exploration and building of DiGraph
             # add switches near agent's target in DiGraph
             ending_points = []
@@ -102,55 +102,62 @@ class ObserverDAG(ObservationBuilder):
                 if handle in n['targets']:
                     ending_points.append(n)
                     cost, out_dir = n['targets'][handle]
-                    for access in range(4): # don't you have already it in the node?
-                        if self.env.rail.get_transitions(n[1], n[0], TRANS[access])[out_dir] == 1:
+                    for access in range(4):
+                        if n["trans"][access][out_dir] == 1:
                             node = (*n, access)
                             di_graph.add_node(node)
-                            edges.append((node, target, {'weight': cost, 'dir': out_dir}))
-            #-explore target to agent senza altri agenti
+                            di_graph.add_edge(node, target, {'weight': cost, 'dir': out_dir})
+            # -explore target-to-agent without other agents
             self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
-            #-explore target to agent con altri agenti
+            # -explore path target-to-agent other agents
             # TODO access deadlock detector to exclude bad nodes (to save computation)
             for a in self.env.agents: # TODO only agents not deadlocked
-                #remove busy edges from working_graph
-                pos_x, pos_y = a.initial_position if a.position is None else a.position
+                # remove busy edges (only opposite direction) from working_graph
+                pos_y, pos_x = a.initial_position if a.position is None else a.position
                 dir = a.initial_direction if a.position is None else a.direction
                 while True:
                     pos_x, pos_y, dir = self.get_next_oriented_pos(pos_x, pos_y, dir)
                     if self._is_dead_end(pos_x, pos_y): dir = self._opposite_dir(dir)
                     if self._is_switch(pos_x, pos_y): break
                 t = self.graph.nodes[(pos_x, pos_y)]["trans_node"][:self._opposite_dir(dir)]
-                working_graph.remove_edge((pos_x, pos_y), t[t != (0, 0)])
+                [working_graph.remove_edge((pos_x, pos_y), destination_node) for destination_node in t if destination_node != (0,0)]
             self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
 
         # add attributes to nodes based on conflicts
+        radius = self.env.params.deadlock_params["radius"]
+        for handle in self.prioritized_agents:
+            matching_graph = self.prev_observations[handle]
+            start = None
+            for _, start in matching_graph.nodes.items():
+                if "start" in start: break
+            # TODO DFS from start to radius distance return a set of nodes to match with di_graph.nodes
+            # for each agent if observation graph has node in common (compare only x,y) then this node is a conflict node
 
         observation = np.zeros(10)
 
-        # We track what cells where considered while building the observation and make them accessible for rendering
-        visited = set()
-
-        for _idx in range(10):
-            # Check if any of the other prediction overlap with agents own predictions
-            x_coord = self.predictions[handle][_idx][1]
-            y_coord = self.predictions[handle][_idx][2]
-
-            # We add every observed cell to the observation rendering
-            visited.add((x_coord, y_coord))
-            if self.predicted_pos[_idx][handle] in np.delete(self.predicted_pos[_idx], handle, 0):
-                # We detect if another agent is predicting to pass through the same cell at the same predicted time
-                observation[handle] = 1
-
-        # This variable will be accessed by the renderer to visualize the observations
-        self.env.dev_obs_dict[handle] = visited
-
+        # # We track what cells where considered while building the observation and make them accessible for rendering
+        # visited = set()
+        #
+        # for _idx in range(10):
+        #     # Check if any of the other prediction overlap with agents own predictions
+        #     x_coord = self.predictions[handle][_idx][1]
+        #     y_coord = self.predictions[handle][_idx][2]
+        #
+        #     # We add every observed cell to the observation rendering
+        #     visited.add((x_coord, y_coord))
+        #     if self.predicted_pos[_idx][handle] in np.delete(self.predicted_pos[_idx], handle, 0):
+        #         # We detect if another agent is predicting to pass through the same cell at the same predicted time
+        #         observation[handle] = 1
+        #
+        # # This variable will be accessed by the renderer to visualize the observations
+        # self.env.dev_obs_dict[handle] = visited
         return observation
 
     def _init_graph(self):
         self.graph = nx.Graph()
         # create an edge for each pair of connected switch
         visited = np.zeros((self.env.width, self.env.height), np.bool)
-        targets = [a.target for a in self.env.agents]
+        targets = [a.target[::-1] for a in self.env.agents]
         edges = []
         start_points = []
         while not np.all(visited[self.env.rail.grid>0]):
@@ -431,3 +438,19 @@ class ObserverDAG(ObservationBuilder):
             return path
         except:
             return None
+
+    def _rank_agents(self):
+        list = dict()
+        for handle in self.env.agents:
+            agent = self.env.agents[handle]
+            next_malfunction = agent.malfunction_data["next_malfunction"]
+            malfunction = agent.malfunction_data["malfunction"]
+            distance = np.linalg.norm(np.asarray(agent.position) - np.asarray(agent.target))
+            velocity = agent.speed_data["speed"]
+            switch = 0
+            for _, n in self.prev_observations[handle].nodes.items():
+                if "start" in n: switch = n["shortest_path"]; break
+            ratio = ((distance/(next_malfunction+1/(malfunction+1)))/velocity)*switch
+            list.update({handle:ratio})
+        return dict(sorted(list.items(), key=lambda x: x[1])).keys()
+
