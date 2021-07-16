@@ -80,6 +80,23 @@ class DummyPredictorForRailEnv(PredictionBuilder):
             agent.direction = agent_virtual_direction
         return prediction_dict
 
+class NullPredictor(PredictionBuilder):
+
+    def __init__(self, max_depth=None):
+        super().__init__(max_depth)
+
+    def reset(self, graph):
+        super().reset()
+        self.envGraph = graph
+
+    def set_env(self, env):
+        super().set_env(env)
+
+    def get_many(self):
+        return {agent.handle: None for agent in self.env.agents}
+
+    def get(self, handle):
+        return None
 
 class GraphPredictor(PredictionBuilder):
     """
