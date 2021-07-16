@@ -12,6 +12,7 @@ class FlatlandRailEnv(RailEnv):
     def __init__(self, env_params, *args, **kwargs):
         super(FlatlandRailEnv, self).__init__(*args, **kwargs)
 
+        self.previous_distance = [400] * env_params.n_agents
         self.params = env_params
         self.env_renderer = None
         self.norm_controller = NormalizerController(self, env_params)
@@ -54,7 +55,7 @@ class FlatlandRailEnv(RailEnv):
         # Deadlocks check
         info = self.dl_controller.check_deadlocks(info)
         # Rewards progress
-        rewards = self._compute_rewards(rewards, dones, info)
+        rewards = self._compute_rewards(rewards, info, dones)
         # Stats progress
         stats = self.stats_controller.update(action_dict, rewards, dones, info)
         if stats: self.stats = stats
@@ -84,8 +85,17 @@ class FlatlandRailEnv(RailEnv):
 
 # private
 
-    def _compute_rewards(self, rewards, dones, info):
-        return rewards  # TODO
+    def _compute_rewards(self, rewards, info, dones):
+        for i_agent, agent in enumerate(self.agents):
+            agent_distance_target = np.linalg.norm(np.asarray(agent.position) - np.asarray(agent.target))
+            if dones[i_agent]:
+                rewards[i_agent] = self.params.rewards.goal_reward
+            elif info["deadlocks"][i_agent]:
+                rewards[i_agent] = self.params.rewards.deadlock_penalty
+            elif agent_distance_target <= self.previous_distance[i_agent]:
+                rewards[i_agent] = rewards[i_agent] * self.params.rewards.reducedistance_penalty
+            self.previous_distance = agent_distance_target;
+        return rewards
 
 # accessors
 

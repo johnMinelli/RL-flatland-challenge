@@ -28,7 +28,9 @@ small_env:
     # Malfunction maximum duration
     max_duration: 50
   rewards:
-    stop_penalty: 2.0
+    deadlock_penalty: -10
+    goal_reward: 10
+    reducedistance_penalty: 0.5
   render: False
 
 
