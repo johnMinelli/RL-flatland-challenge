@@ -29,6 +29,7 @@ TRANS = [
     Grid4TransitionsEnum.WEST
 ]
 
+
 class ObserverDAG(ObservationBuilder):
 
     def __init__(self, predictor):
@@ -64,16 +65,19 @@ class ObserverDAG(ObservationBuilder):
         di_graph = nx.MultiDiGraph()  # (node, enter_dir) ----cost, out_dir---->
         working_graph = self.graph
 
-        other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
-                                 for iter_handle, a  in enumerate(self.env.agents) if iter_handle != handle]
+        other_agents_position = [(*(a.initial_position if a.position is None else a.position),
+                                  a.initial_direction if a.position is None else a.direction)
+                                 for iter_handle, a in enumerate(self.env.agents) if iter_handle != handle]
         steps = 0
         target_flag = False
         deadlock_flag = False
 
         # TODO still to define how you don't call the model (for a single agent) when you don't have to
 
-        start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position)[::-1]
-        start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else self.env.agents[handle].direction
+        start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else
+                     self.env.agents[handle].position)[::-1]
+        start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else \
+        self.env.agents[handle].direction
         target = self.env.agents[handle].target[::-1]
         while not self._is_switch(*start_pos, start_dir):
             if start_pos == target: target_flag = True; break
@@ -82,7 +86,7 @@ class ObserverDAG(ObservationBuilder):
             x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir)
             start_pos = (x, y)
             steps += 1
-        di_graph.add_node((*start_pos, start_dir), **{"start": True}) # TODO add info agent
+        di_graph.add_node((*start_pos, start_dir), **{"start": True})  # TODO add info agent
         if target_flag:
             di_graph.update(nodes=[((*start_pos, start_dir), {"target": True})])
             return di_graph
@@ -94,7 +98,7 @@ class ObserverDAG(ObservationBuilder):
             di_graph = self.prev_observations[handle]
         else:
             # add real target in graph
-            di_graph.add_node(target, **{"target":True})
+            di_graph.add_node(target, **{"target": True})
             # start exploration and building of DiGraph
             # add switches near agent's target in DiGraph
             ending_points = []
@@ -111,7 +115,7 @@ class ObserverDAG(ObservationBuilder):
             self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
             # -explore path target-to-agent other agents
             # TODO access deadlock detector to exclude bad nodes (to save computation)
-            for a in self.env.agents: # TODO only agents not deadlocked
+            for a in self.env.agents:  # TODO only agents not deadlocked
                 # remove busy edges (only opposite direction) from working_graph
                 pos_y, pos_x = a.initial_position if a.position is None else a.position
                 dir = a.initial_direction if a.position is None else a.direction
@@ -120,17 +124,24 @@ class ObserverDAG(ObservationBuilder):
                     if self._is_dead_end(pos_x, pos_y): dir = self._opposite_dir(dir)
                     if self._is_switch(pos_x, pos_y): break
                 t = self.graph.nodes[(pos_x, pos_y)]["trans_node"][:self._opposite_dir(dir)]
-                [working_graph.remove_edge((pos_x, pos_y), destination_node) for destination_node in t if destination_node != (0,0)]
+                [working_graph.remove_edge((pos_x, pos_y), destination_node) for destination_node in t if
+                 destination_node != (0, 0)]
             self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
 
         # add attributes to nodes based on conflicts
         radius = self.env.params.deadlock_params["radius"]
-
-        for matching_handle in range(handle):
+        #TODO controllare gli indici perchè l handle è la posizione del agent dentro alla lista degli agent e a noi ci serve la posizione in lista
+        # per poi ottenere dalla lista le key degli agent
+        pos_priority_handle = self.prioritized_agents[handle] #controllare
+        for matching_handle in range(pos_priority_handle):
             matching_graph = self.prev_observations[matching_handle]
             start = None
             for _, start in matching_graph.nodes.items():
                 if "start" in start: break
+
+            node_list = self._dfsRadiusLimit(matching_graph, start, radius)
+
+
             # TODO DFS from start to radius distance return a set of nodes to match with di_graph.nodes
             # for each agent if observation graph has node in common (compare only x,y) then this node is a conflict node
 
@@ -161,13 +172,15 @@ class ObserverDAG(ObservationBuilder):
         targets = [a.target[::-1] for a in self.env.agents]
         edges = []
         start_points = []
-        while not np.all(visited[self.env.rail.grid>0]):
+        while not np.all(visited[self.env.rail.grid > 0]):
             for i, row in enumerate(self.env.rail.grid):
                 for j, _ in enumerate(row):
-                    if not visited[j, i] and (i,j) not in targets:
+                    if not visited[j, i] and (i, j) not in targets:
                         if self.env.rail.grid[j, i] != 0 and self._is_switch(i, j):
                             # append cell oriented
-                            [start_points.append((i, j, new_dir)) for new_dir, accessible in enumerate(self.get_allowed_directions(i, j)) if accessible]; break
+                            [start_points.append((i, j, new_dir)) for new_dir, accessible in
+                             enumerate(self.get_allowed_directions(i, j)) if accessible];
+                            break
                 if len(start_points) != 0: break
             while len(start_points) != 0:
                 steps = 0
@@ -180,22 +193,31 @@ class ObserverDAG(ObservationBuilder):
                     if self._is_switch(x, y):
                         if start_x == x and start_y == y: break
                         # update previous node transition
-                        self.graph.add_node((start_x, start_y), **self.encode_node_attributes(start_x, start_y, start_dir, steps, targets_in_path, next_node=(x, y)))
+                        self.graph.add_node((start_x, start_y),
+                                            **self.encode_node_attributes(start_x, start_y, start_dir, steps,
+                                                                          targets_in_path, next_node=(x, y)))
                         # add current switch cell to graph with mirrored information
-                        self.graph.add_node((x, y), **self.encode_node_attributes(x, y, dir, steps, targets_in_path, prev_node=(start_x, start_y), mirror_direction=True))
-                        edges.append(((start_x, start_y), (x, y), {'weight': steps, 'dir': {(start_x, start_y):edge_entering_dir, (x, y): dir}})) # entering_direction
+                        self.graph.add_node((x, y), **self.encode_node_attributes(x, y, dir, steps, targets_in_path,
+                                                                                  prev_node=(start_x, start_y),
+                                                                                  mirror_direction=True))
+                        edges.append(((start_x, start_y), (x, y), {'weight': steps,
+                                                                   'dir': {(start_x, start_y): edge_entering_dir,
+                                                                           (x, y): dir}}))  # entering_direction
                         # and continue visit in other directions
-                        [start_points.append((x, y, new_dir)) for new_dir, accessible in enumerate(self.get_allowed_directions(x, y))
+                        [start_points.append((x, y, new_dir)) for new_dir, accessible in
+                         enumerate(self.get_allowed_directions(x, y))
                          if accessible and new_dir != self._opposite_dir(dir)]
                         visited[y, x] = True
                         break
                     elif self._is_dead_end(x, y):
-                        self.graph.add_node((start_x, start_y), **self.encode_node_attributes(start_x, start_y, start_dir, steps, targets_in_path, dead_end_detected=True))
+                        self.graph.add_node((start_x, start_y),
+                                            **self.encode_node_attributes(start_x, start_y, start_dir, steps,
+                                                                          targets_in_path, dead_end_detected=True))
                     elif visited[y, x]:
                         break
                     else:
                         steps += 1
-                        if (x,y) in targets:
+                        if (x, y) in targets:
                             for agent, target in enumerate(targets):
                                 targets_in_path[agent] = steps
                         visited[y, x] = True
@@ -224,10 +246,12 @@ class ObserverDAG(ObservationBuilder):
                     node_exit_dir = node_directed_destinations.index(next_node)
                     next_orientation = exploration_graph.edges[(current_node, next_node)]["dir"][next_node]
                     cost, destination, dead_end_flag = self._update_graph_until_switch(exploration_graph,
-                                                                                       current_node, current_orientation,
+                                                                                       current_node,
+                                                                                       current_orientation,
                                                                                        next_node, next_orientation)
                     directed_graph.add_node((*next_node, next_orientation))
-                    directed_graph.add_edge((*current_node, current_orientation), destination,{'weight': cost, "out_dir": node_exit_dir})
+                    directed_graph.add_edge((*current_node, current_orientation), destination,
+                                            {'weight': cost, "out_dir": node_exit_dir})
                     # update iterators and continue
                     current_node = destination[0:2]
                     current_orientation = destination[2]
@@ -236,9 +260,11 @@ class ObserverDAG(ObservationBuilder):
                 elif current_node in node_directed_destinations:
                     # immediate dead_end from current_node
                     node_exit_dir = node_directed_destinations.index(current_node)
-                    cost, destination, dead_end_flag  = self._update_graph_until_switch(exploration_graph,
-                                                                                        current_node, current_orientation,
-                                                                                        current_node, self._opposite_dir(current_orientation))
+                    cost, destination, dead_end_flag = self._update_graph_until_switch(exploration_graph,
+                                                                                       current_node,
+                                                                                       current_orientation,
+                                                                                       current_node, self._opposite_dir(
+                            current_orientation))
                     directed_graph.add_node(destination, **{"dead_end": True})
                     directed_graph.add_edge((*current_node, current_orientation), destination,
                                             {'weight': cost, "out_dir": node_exit_dir})
@@ -255,29 +281,38 @@ class ObserverDAG(ObservationBuilder):
                     next_node = None
                     for node_exit_dir, destination_node in enumerate(node_directed_destinations):
                         if destination_node == (0, 0): continue
-                        
-                        if unreachable_node in exploration_graph.nodes[current_node]["trans_node"][self._opposite_dir(node_exit_dir)]:
+
+                        if unreachable_node in exploration_graph.nodes[current_node]["trans_node"][
+                            self._opposite_dir(node_exit_dir)]:
                             # transition which eventually with a dead and can take you to the unreachable_node
-                            next_orientation = exploration_graph.edges[(current_node, destination_node)]["dir"][destination_node]
-                            cost, destination, dead_end_flag  = self._update_graph_until_switch(exploration_graph,
-                                                                                                current_node, current_orientation,
-                                                                                                destination_node, next_orientation)
+                            next_orientation = exploration_graph.edges[(current_node, destination_node)]["dir"][
+                                destination_node]
+                            cost, destination, dead_end_flag = self._update_graph_until_switch(exploration_graph,
+                                                                                               current_node,
+                                                                                               current_orientation,
+                                                                                               destination_node,
+                                                                                               next_orientation)
                             destination_node = destination[0:2]
                             next_orientation = destination[2]
-                            next_node_directed_destinations = exploration_graph.nodes[destination_node]["trans_node"][next_orientation]
+                            next_node_directed_destinations = exploration_graph.nodes[destination_node]["trans_node"][
+                                next_orientation]
                             if destination_node in next_node_directed_destinations:
                                 # (path resolution) immediate dead_end
-                                directed_graph.add_edge((*current_node, current_orientation),(*destination_node, next_orientation),
+                                directed_graph.add_edge((*current_node, current_orientation),
+                                                        (*destination_node, next_orientation),
                                                         {'weight': cost, "out_dir": node_exit_dir})
-                                dead_end_cost, dead_end_destination, _ = self._update_graph_until_switch(exploration_graph,
-                                                                                                      destination_node, next_orientation,
-                                                                                                      destination_node, self._opposite_dir(next_orientation))
+                                dead_end_cost, dead_end_destination, _ = self._update_graph_until_switch(
+                                    exploration_graph,
+                                    destination_node, next_orientation,
+                                    destination_node, self._opposite_dir(next_orientation))
                                 directed_graph.add_node(dead_end_destination, **{"dead_end": True})
                                 directed_graph.add_edge((*destination_node, next_orientation), dead_end_destination,
-                                                        {'weight': dead_end_cost, "out_dir": node_directed_destinations.index(destination_node)})
+                                                        {'weight': dead_end_cost,
+                                                         "out_dir": node_directed_destinations.index(destination_node)})
                             # else:
-                                # (path resolution) 1 step ahead dead_end
-                        elif exploration_node is None: exploration_node = destination_node
+                            # (path resolution) 1 step ahead dead_end
+                        elif exploration_node is None:
+                            exploration_node = destination_node
                         if next_node is None: next_node = destination_node
 
                     # need a new dijkstra iteration
@@ -342,41 +377,43 @@ class ObserverDAG(ObservationBuilder):
         :param y: current position
         :return: directions accessible
         """
-        access = [False]*4
+        access = [False] * 4
         bits = format(self.env.rail.grid[y, x], 'b').rjust(16, '0')
         for k, bit in enumerate(bits):
-            if bit == '1': access[k%4] = True
+            if bit == '1': access[k % 4] = True
         return access
 
-    def encode_node_attributes(self, x, y, dir, prev_steps, targets, next_node=None, prev_node=None, mirror_direction=False, dead_end_detected=False):
+    def encode_node_attributes(self, x, y, dir, prev_steps, targets, next_node=None, prev_node=None,
+                               mirror_direction=False, dead_end_detected=False):
         trans = np.array([[*self.env.rail.get_transitions(y, x, TRANS[dir])] for dir in range(4)])
-        trans_node_l = ([[(0,0)]*4])*4
+        trans_node_l = ([[(0, 0)] * 4]) * 4
         trans_node = np.empty(len(trans_node_l), dtype=object)
         trans_node[:] = trans_node_l
-        dead_end = np.zeros((4,4))
+        dead_end = np.zeros((4, 4))
         if mirror_direction:
             # per ogni posizione con sbocco in _opposite_dir(dir) ha prev_node
             dir = self._opposite_dir(dir)
-            targets = {agent: (prev_steps - opposite_side_steps + 1, dir) for agent, opposite_side_steps in targets.items()}
+            targets = {agent: (prev_steps - opposite_side_steps + 1, dir) for agent, opposite_side_steps in
+                       targets.items()}
             if not prev_node is None:
                 for transitions in trans_node[trans[:, dir] == 1]: transitions[dir] = prev_node
         else:
             if not next_node is None:
                 for transitions in trans_node[trans[:, dir] == 1]: transitions[dir] = next_node
         if dead_end_detected:
-            dead_end[trans[:, dir] == 1, dir] = (prev_steps*2)-1
+            dead_end[trans[:, dir] == 1, dir] = (prev_steps * 2) - 1
         # if the node already exist is an update
-        if (x,y) in self.graph.nodes:
-            old_attr = self.graph.nodes[(x,y)]
-            for arry,o in enumerate(trans_node):
-                for arrx,t in enumerate(o):
+        if (x, y) in self.graph.nodes:
+            old_attr = self.graph.nodes[(x, y)]
+            for arry, o in enumerate(trans_node):
+                for arrx, t in enumerate(o):
                     if t == (0, 0): trans_node[arry][arrx] = old_attr["trans_node"][arry][arrx]
             if len(targets) != 0:
                 targets = {**old_attr["targets"], **targets}
         return {"trans": trans, "trans_node": trans_node, "dead_end": dead_end, "targets": targets}
 
     def _opposite_dir(self, direction):
-        return (direction+2) % 4
+        return (direction + 2) % 4
 
     def _is_switch(self, x, y, dir=None):
         if dir is None:
@@ -393,7 +430,8 @@ class ObserverDAG(ObservationBuilder):
         return np.all([node in undirected_nodes for node in path])
         nx.find_cycle()
 
-    def _update_graph_until_switch(self, undirected_graph, current_node, current_orientation, next_node, next_orientation):
+    def _update_graph_until_switch(self, undirected_graph, current_node, current_orientation, next_node,
+                                   next_orientation):
         # find switch
         # update undirected graph with new edges end remove the one not relevant (no switch)
         # update transition matrix of current_node in row current_orientation with real node switch
@@ -417,13 +455,15 @@ class ObserverDAG(ObservationBuilder):
                         next_orientation = self._opposite_dir(next_orientation)
                         cost += undirected_graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir] + 1
                     else:
-                        next_orientation = undirected_graph.edges[(next_node, destination_node)]["dir"][destination_node]
+                        next_orientation = undirected_graph.edges[(next_node, destination_node)]["dir"][
+                            destination_node]
                         cost += undirected_graph.edges[(current_node, next_node)]["weight"] + 1
                     next_node = destination_node
                     break
             if current_node == next_node:
                 break
-        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation), {'weight': cost, "out_dir": node_exit_dir})
+        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
+                                  {'weight': cost, "out_dir": node_exit_dir})
         undirected_graph[current_node]["trans_node"][current_orientation][start_node_exit_dir] = next_node
         return cost, (*next_node, next_orientation), dead_end
 
@@ -443,7 +483,8 @@ class ObserverDAG(ObservationBuilder):
     def _rank_agents(self):
         list = dict()
         if len(self.prev_observations) == 0:
-            return [a.handle for a in sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
+            return [a.handle for a in
+                    sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
         else:
             for handle, agent in enumerate(self.env.agents):
                 start_node = None
@@ -454,7 +495,19 @@ class ObserverDAG(ObservationBuilder):
                 velocity = agent.speed_data["speed"]
                 switch = start_node["shortest_path"]
                 distance = start_node["shortest_path_cost"]
-                ratio = ((distance/(next_malfunction+1/(malfunction+1)))/velocity)*switch
+                ratio = ((distance / (next_malfunction + 1 / (malfunction + 1))) / velocity) * switch
                 list.update({handle: ratio})
         return dict(sorted(list.items(), key=lambda x: x[1])).keys()
 
+    def _dfsRadiusLimit(self, graph, start, radius):
+        node_list = set()
+        self._DFSUtilsRadius(graph, start, radius, node_list)
+        return node_list
+
+    def _DFSUtilsRadius(self, graph, node, radius, node_list):
+        node_list.add(node)
+        radius -= 1
+        if radius != 0:
+            for neighbour in graph[node]:
+                if neighbour not in node_list:
+                    self._DFSUtilsRadius(graph, neighbour, radius, node_list)
