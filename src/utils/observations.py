@@ -29,6 +29,7 @@ TRANS = [
     Grid4TransitionsEnum.WEST
 ]
 
+
 class ObserverDAG(ObservationBuilder):
 
     def __init__(self, predictor):
@@ -131,6 +132,21 @@ class ObserverDAG(ObservationBuilder):
             start = None
             for _, start in matching_graph.nodes.items():
                 if "start" in start: break
+            # TODO DFS from start to radius distance return a set of nodes to match with di_graph.nodes
+            # for each agent if observation graph has node in common (compare only x,y) then this node is a conflict node
+        radius = self.env.params.deadlock_params["radius"]
+        #TODO controllare gli indici perchè l handle è la posizione del agent dentro alla lista degli agent e a noi ci serve la posizione in lista
+        # per poi ottenere dalla lista le key degli agent
+        pos_priority_handle = self.prioritized_agents[handle] #controllare
+        for matching_handle in range(pos_priority_handle):
+            matching_graph = self.prev_observations[matching_handle]
+            start = None
+            for _, start in matching_graph.nodes.items():
+                if "start" in start: break
+
+            node_list = self._dfsRadiusLimit(matching_graph, start, radius)
+
+
             # TODO DFS from start to radius distance return a set of nodes to match with di_graph.nodes
             # for each agent if observation graph has node in common (compare only x,y) then this node is a conflict node
 
@@ -458,3 +474,36 @@ class ObserverDAG(ObservationBuilder):
                 list.update({handle: ratio})
         return dict(sorted(list.items(), key=lambda x: x[1])).keys()
 
+
+
+    def _rank_agents(self):
+        list = dict()
+        if len(self.prev_observations) == 0:
+            return [a.handle for a in
+                    sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
+        else:
+            for handle, agent in enumerate(self.env.agents):
+                start_node = None
+                for _, start_node in self.prev_observations[handle].nodes.items():
+                    if "start" in start_node: break;
+                next_malfunction = agent.malfunction_data["next_malfunction"]
+                malfunction = agent.malfunction_data["malfunction"]
+                velocity = agent.speed_data["speed"]
+                switch = start_node["shortest_path"]
+                distance = start_node["shortest_path_cost"]
+                ratio = ((distance / (next_malfunction + 1 / (malfunction + 1))) / velocity) * switch
+                list.update({handle: ratio})
+        return dict(sorted(list.items(), key=lambda x: x[1])).keys()
+
+    def _dfsRadiusLimit(self, graph, start, radius):
+        node_list = set()
+        self._DFSUtilsRadius(graph, start, radius, node_list)
+        return node_list
+
+    def _DFSUtilsRadius(self, graph, node, radius, node_list):
+        node_list.add(node)
+        radius -= 1
+        if radius != 0:
+            for neighbour in graph[node]:
+                if neighbour not in node_list:
+                    self._DFSUtilsRadius(graph, neighbour, radius, node_list)
