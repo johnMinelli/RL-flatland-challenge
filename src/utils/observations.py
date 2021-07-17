@@ -125,8 +125,9 @@ class ObserverDAG(ObservationBuilder):
 
         # add attributes to nodes based on conflicts
         radius = self.env.params.deadlock_params["radius"]
-        for handle in self.prioritized_agents:
-            matching_graph = self.prev_observations[handle]
+
+        for matching_handle in range(handle):
+            matching_graph = self.prev_observations[matching_handle]
             start = None
             for _, start in matching_graph.nodes.items():
                 if "start" in start: break
@@ -441,16 +442,19 @@ class ObserverDAG(ObservationBuilder):
 
     def _rank_agents(self):
         list = dict()
-        for handle in self.env.agents:
-            agent = self.env.agents[handle]
-            next_malfunction = agent.malfunction_data["next_malfunction"]
-            malfunction = agent.malfunction_data["malfunction"]
-            distance = np.linalg.norm(np.asarray(agent.position) - np.asarray(agent.target))
-            velocity = agent.speed_data["speed"]
-            switch = 0
-            for _, n in self.prev_observations[handle].nodes.items():
-                if "start" in n: switch = n["shortest_path"]; break
-            ratio = ((distance/(next_malfunction+1/(malfunction+1)))/velocity)*switch
-            list.update({handle:ratio})
+        if len(self.prev_observations) == 0:
+            return [a.handle for a in sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
+        else:
+            for handle, agent in enumerate(self.env.agents):
+                start_node = None
+                for _, start_node in self.prev_observations[handle].nodes.items():
+                    if "start" in start_node: break;
+                next_malfunction = agent.malfunction_data["next_malfunction"]
+                malfunction = agent.malfunction_data["malfunction"]
+                velocity = agent.speed_data["speed"]
+                switch = start_node["shortest_path"]
+                distance = start_node["shortest_path_cost"]
+                ratio = ((distance/(next_malfunction+1/(malfunction+1)))/velocity)*switch
+                list.update({handle: ratio})
         return dict(sorted(list.items(), key=lambda x: x[1])).keys()
 
