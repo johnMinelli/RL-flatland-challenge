@@ -2,8 +2,9 @@ import numpy as np
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
 
-from src.env.env_extensions import StatisticsController, NormalizerController, DeadlocksController, \
-    DeadlocksGraphController, NullNormalizerController
+from src.env.env_extensions import StatisticsController, NormalizerController
+from src.utils.deadlocks import DeadlocksController, DeadlocksGraphController
+#NullNormalizerController
 
 
 class FlatlandRailEnv(RailEnv):
@@ -54,7 +55,7 @@ class FlatlandRailEnv(RailEnv):
         # Normalization phase
         obs = self.norm_controller.normalize_observations(obs)
         # Deadlocks check
-        info = self.dl_controller.check_deadlocks(info)
+        info = self.dl_controller.check_deadlocks(info, obs)
         # Rewards progress
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress

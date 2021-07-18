@@ -163,15 +163,32 @@ class DeadlocksController:  #TODO implement default deadlock controller for leng
         return info
 
 
-class DeadlocksGraphController:  #TODO implement
+class DeadlocksGraphController:
 
     def __init__(self, env):
         self.env = env
         self.deadlocks = [False] * len(self.env.agents)
         self.negated_edges = dict()
 
+    """
+        Check for new deadlocks, updates info and returns it.
+    
+        :param info: The information about each agent obs: observation with dict of observation for single handle
+        :return: the updated information dictionary
+    """
+    def check_deadlocks(self, info, obs):
+        info["deadlocks"] = {}
+        for handle in range(self.env.get_num_agents()):
+            graph = obs.observations[handle].graph
+            for _, n in graph.nodes.items():
+                if handle in n['deadlock']:
+                    self.deadlocks[handle] = True
+            info["deadlocks"][handle] = self.deadlocks[handle]
+        return info
 
-    def check_deadlocks(self, info):
+
+
+
         """
         Check for new deadlocks, updates info and returns it.
 
