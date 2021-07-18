@@ -22,6 +22,11 @@ from src.env.flatland_railenv import FlatlandRailEnv
 'num_agents_malfunctioning '
 'speed_min_fractional '
 
+# reason about presence of an agent on switch
+# reason about deadlock on switch
+# reason about agent without path to target         V
+
+
 TRANS = [
     Grid4TransitionsEnum.NORTH,
     Grid4TransitionsEnum.EAST,
@@ -30,7 +35,7 @@ TRANS = [
 ]
 
 
-class ObserverDAG(ObservationBuilder):
+class DagObserver(ObservationBuilder):
 
     def __init__(self, predictor):
         super().__init__()
@@ -58,7 +63,6 @@ class ObserverDAG(ObservationBuilder):
         # Collect all the different observation for all the agents
         for h in self.prioritized_agents:
             self.observations[h] = self.get(h)
-        self.prev_observations = self.observations
         return self.observations
 
     def get(self, handle=0):
@@ -71,8 +75,6 @@ class ObserverDAG(ObservationBuilder):
         target_flag = False
         deadlock_flag = False
 
-        # TODO still to define how you don't call the model (for a single agent) when you don't have to
-
         start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position)[::-1]
         start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else self.env.agents[handle].direction
         target = self.env.agents[handle].target[::-1]
@@ -83,7 +85,7 @@ class ObserverDAG(ObservationBuilder):
             x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir)
             start_pos = (x, y)
             steps += 1
-        di_graph.add_node((*start_pos, start_dir), **{"start": True}) # TODO add info agent
+        di_graph.add_node((*start_pos, start_dir), **{"start": True, **self.encode_start_node_attributes(handle)})
         if target_flag:
             di_graph.update(nodes=[((*start_pos, start_dir), {"target": True})])
             return di_graph
@@ -91,8 +93,9 @@ class ObserverDAG(ObservationBuilder):
             di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True})])
             return di_graph
 
-        if steps > 1:  # reuse previous observation structure
-            di_graph = self.prev_observations[handle]
+        if steps != 1 and not len(self.prev_observations) != 0 and handle in self.prev_observations:
+            # reuse previous observation structure
+            di_graph = self._copy_graph_structure(self.prev_observations[handle])
         else:
             # add real target in graph
             di_graph.add_node(target, **{"target":True})
@@ -108,11 +111,14 @@ class ObserverDAG(ObservationBuilder):
                             node = (*n, access)
                             di_graph.add_node(node)
                             di_graph.add_edge(node, target, {'weight': cost, 'dir': out_dir})
+
+            # TODO access deadlock detector to exclude bad edges (to save computation)
+
             # -explore target-to-agent without other agents
-            self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
+            if not self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points):
+                di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True})])
             # -explore path target-to-agent other agents
-            # TODO access deadlock detector to exclude bad nodes (to save computation)
-            for a in self.env.agents: # TODO only agents not deadlocked
+            for a in np.array(self.env.agents)[not self.env.dl_controller.deadlocks]:
                 # remove busy edges (only opposite direction) from working_graph
                 pos_y, pos_x = a.initial_position if a.position is None else a.position
                 dir = a.initial_direction if a.position is None else a.direction
@@ -125,30 +131,21 @@ class ObserverDAG(ObservationBuilder):
             self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
 
         # add attributes to nodes based on conflicts
-        radius = self.env.params.deadlock_params["radius"]
-
-        for matching_handle in range(handle):
-            matching_graph = self.prev_observations[matching_handle]
-            start = None
-            for _, start in matching_graph.nodes.items():
-                if "start" in start: break
-            # TODO DFS from start to radius distance return a set of nodes to match with di_graph.nodes
-            # for each agent if observation graph has node in common (compare only x,y) then this node is a conflict node
-        radius = self.env.params.deadlock_params["radius"]
-        #TODO controllare gli indici perchè l handle è la posizione del agent dentro alla lista degli agent e a noi ci serve la posizione in lista
-        # per poi ottenere dalla lista le key degli agent
-        pos_priority_handle = self.prioritized_agents[handle] #controllare
-        for matching_handle in range(pos_priority_handle):
-            matching_graph = self.prev_observations[matching_handle]
-            start = None
-            for _, start in matching_graph.nodes.items():
-                if "start" in start: break
-
-            node_list = self._dfsRadiusLimit(matching_graph, start, radius)
-
-
-            # TODO DFS from start to radius distance return a set of nodes to match with di_graph.nodes
-            # for each agent if observation graph has node in common (compare only x,y) then this node is a conflict node
+        radius = self.env.params.observer_params["conflict_radius"]
+        agent_ranking_pos = self.prioritized_agents.index(handle)
+        for matching_handle in range(agent_ranking_pos):
+            # if the observation graph has a node in common with the other agent graph (compare only x,y) then this node is a conflict node
+            if not self.prev_observations[matching_handle] is None:
+                matching_graph = self.prev_observations[matching_handle]
+                start = None
+                for _, start in matching_graph.nodes.items():
+                    if "start" in start: break
+                node_list = set()
+                [node_list.update(nx.descendants_at_distance(matching_graph, start, radius)) for radius in range(radius)]
+                possible_conflicts = set()
+                [possible_conflicts.update([(*matching_node[0:2], other_dir) for other_dir in range(4) if other_dir != matching_node[2]]) for matching_node in node_list]
+                for conflict_node in possible_conflicts.intersection(di_graph.nodes.keys()):
+                    di_graph.update(nodes=[(conflict_node, {"conflict": True, **self.encode_conflict_node_attributes(matching_handle)})])
 
         observation = np.zeros(10)
 
@@ -168,6 +165,8 @@ class ObserverDAG(ObservationBuilder):
         #
         # # This variable will be accessed by the renderer to visualize the observations
         # self.env.dev_obs_dict[handle] = visited
+
+        self.prev_observations[handle] = observation
         return observation
 
     def _init_graph(self):
@@ -224,7 +223,7 @@ class ObserverDAG(ObservationBuilder):
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points):
         path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir)
-        if path is None: return
+        if path is None: return False
         while not self._is_path_in_graph(directed_graph, path):
             current_node = None
             current_orientation = start_dir
@@ -304,13 +303,13 @@ class ObserverDAG(ObservationBuilder):
                     directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
                                             {'weight': cost, "out_dir": node_exit_dir})
                     path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
-                    if path is None: return
+                    if path is None: return True
                     current_node = None
                     current_orientation = next_orientation
                     i = 0
                     path = path[::-1]
             path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
-            if path is None: return
+            if path is None: return True
 
     def get_next_oriented_pos(self, x, y, orientation):
         """
@@ -474,8 +473,6 @@ class ObserverDAG(ObservationBuilder):
                 list.update({handle: ratio})
         return dict(sorted(list.items(), key=lambda x: x[1])).keys()
 
-
-
     def _rank_agents(self):
         list = dict()
         if len(self.prev_observations) == 0:
@@ -495,15 +492,11 @@ class ObserverDAG(ObservationBuilder):
                 list.update({handle: ratio})
         return dict(sorted(list.items(), key=lambda x: x[1])).keys()
 
-    def _dfsRadiusLimit(self, graph, start, radius):
-        node_list = set()
-        self._DFSUtilsRadius(graph, start, radius, node_list)
-        return node_list
+    def encode_conflict_node_attributes(self, agent_handle):
+        pass
 
-    def _DFSUtilsRadius(self, graph, node, radius, node_list):
-        node_list.add(node)
-        radius -= 1
-        if radius != 0:
-            for neighbour in graph[node]:
-                if neighbour not in node_list:
-                    self._DFSUtilsRadius(graph, neighbour, radius, node_list)
+    def encode_start_node_attributes(self, agent_handle):
+        pass
+
+    def _copy_graph_structure(self, param):
+        pass

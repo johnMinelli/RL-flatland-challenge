@@ -2,10 +2,11 @@
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-from src.utils.observations import ObserverDAG
-from src.utils.predictor import GraphPredictor, NullPredictor
+from src.utils.dag_observer import DagObserver
+from src.utils.deadlocks import DeadlocksGraphController
+from src.utils.predictors import NullPredictor
 from src.utils.utils import Struct
-from src.utils.default_observation import normalize_observation
+from src.utils.graph_normalizer import normalize_observation
 from src.dddqn.train import train
 from src.dddqn.eval import eval
 from argparse import Namespace
@@ -22,19 +23,17 @@ if __name__ == "__main__":
     t_env = Struct(**t_env)
 
     # ============== Choose implementation ==============
-    # observer, rewards, speed parameters
+    # observer, normalizer, predictor, dl controller
     # ===================================================
     env = p_env.small_env
 
-    observation_tree_depth = 2
-    observation_max_path_depth = 30
-    env.observer = ObserverDAG
-    # env.observer_params = {"max_depth":observation_tree_depth}
-    env.observer_params = {}
+    env.observer = DagObserver
+    env.observer_params = {"conflict_radius": 2}
     env.observation_normalizer = normalize_observation
+    env.normalizer_params = {}
     env.predictor = NullPredictor
-    env.predictor_params = {"max_depth": observation_max_path_depth}
-    env.observation_radius = 10
+    env.predictor_params = {}
+    env.deadlocks = DeadlocksGraphController
 
     env.speed_profiles = {
         1.: 0.25,

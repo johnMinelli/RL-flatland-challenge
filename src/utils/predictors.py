@@ -10,7 +10,7 @@ from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.rail_env_shortest_paths import get_shortest_paths
 from flatland.utils.ordered_set import OrderedSet
 
-
+# base class
 class DummyPredictorForRailEnv(PredictionBuilder):
     """
     DummyPredictorForRailEnv object.
@@ -80,6 +80,7 @@ class DummyPredictorForRailEnv(PredictionBuilder):
             agent.direction = agent_virtual_direction
         return prediction_dict
 
+# predictions not used
 class NullPredictor(PredictionBuilder):
 
     def __init__(self, max_depth=None):
@@ -98,7 +99,8 @@ class NullPredictor(PredictionBuilder):
     def get(self, handle):
         return None
 
-class GraphPredictor(PredictionBuilder):
+# default path predictor
+class ShortestPathPredictor(PredictionBuilder):
     """
     ShortestPathPredictorForRailEnv object.
 

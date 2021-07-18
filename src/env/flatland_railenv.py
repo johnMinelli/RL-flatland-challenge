@@ -2,7 +2,8 @@ import numpy as np
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
 
-from src.env.env_extensions import StatisticsController, NormalizerController, DeadlocksController
+from src.env.env_extensions import StatisticsController, NormalizerController, DeadlocksController, \
+    DeadlocksGraphController, NullNormalizerController
 
 
 class FlatlandRailEnv(RailEnv):
@@ -15,7 +16,7 @@ class FlatlandRailEnv(RailEnv):
         self.params = env_params
         self.env_renderer = None
         self.norm_controller = NormalizerController(self, env_params)
-        self.dl_controller = DeadlocksController(self)
+        self.dl_controller = env_params.deadlocks(self)
         self.stats_controller = StatisticsController(self, env_params)
 
         # Calculate the state size given the depth of the tree observation and the number of features

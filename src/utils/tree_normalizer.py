@@ -1,6 +1,7 @@
 import numpy as np
 from flatland.envs.observations import TreeObsForRailEnv
 
+
 def max_lt(seq, val):
     """
     Return greatest item in seq for which item < val applies.
@@ -14,7 +15,6 @@ def max_lt(seq, val):
         idx -= 1
     return max
 
-
 def min_gt(seq, val):
     """
     Return smallest item in seq for which item > val applies.
@@ -27,7 +27,6 @@ def min_gt(seq, val):
             min = seq[idx]
         idx -= 1
     return min
-
 
 def norm_obs_clip(obs, clip_min=-1, clip_max=1, fixed_radius=0, normalize_to_range=False):
     """
@@ -52,7 +51,6 @@ def norm_obs_clip(obs, clip_min=-1, clip_max=1, fixed_radius=0, normalize_to_ran
     norm = np.abs(max_obs - min_obs)
     return np.clip((np.array(obs) - min_obs) / norm, clip_min, clip_max)
 
-
 def _split_node_into_feature_groups(node) -> (np.ndarray, np.ndarray, np.ndarray):
     data = np.zeros(6)
     distance = np.zeros(1)
@@ -74,7 +72,6 @@ def _split_node_into_feature_groups(node) -> (np.ndarray, np.ndarray, np.ndarray
 
     return data, distance, agent_data
 
-
 def _split_subtree_into_feature_groups(node, current_tree_depth: int, max_tree_depth: int) -> (np.ndarray, np.ndarray, np.ndarray):
     if node == -np.inf:
         remaining_depth = max_tree_depth - current_tree_depth
@@ -95,7 +92,6 @@ def _split_subtree_into_feature_groups(node, current_tree_depth: int, max_tree_d
 
     return data, distance, agent_data
 
-
 def split_tree_into_feature_groups(tree, max_tree_depth: int) -> (np.ndarray, np.ndarray, np.ndarray):
     """
     This function splits the tree into three difference arrays of values
@@ -109,7 +105,6 @@ def split_tree_into_feature_groups(tree, max_tree_depth: int) -> (np.ndarray, np
         agent_data = np.concatenate((agent_data, sub_agent_data))
 
     return data, distance, agent_data
-
 
 def normalize_observation(observation, tree_depth: int, observation_radius=0):
     """

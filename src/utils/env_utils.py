@@ -24,7 +24,6 @@ def create_rail_env(env_params, load_env=""):
 
     # Observation builder
     predictor = env_params.predictor(**env_params.predictor_params)
-    # tree_observer = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
     observer = env_params.observer(**env_params.observer_params, predictor=predictor)
 
     return FlatlandRailEnv(
