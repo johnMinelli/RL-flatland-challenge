@@ -24,7 +24,7 @@ def create_rail_env(env_params, load_env=""):
 
     # Observation builder
     predictor = env_params.predictor(**env_params.predictor_params)
-    observer = env_params.observer(**env_params.observer_params, predictor=predictor)
+    observer = env_params.observer(predictor=predictor, **env_params.observer_params)
 
     return FlatlandRailEnv(
         env_params,

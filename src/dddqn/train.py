@@ -64,37 +64,40 @@ def train(env_params, train_params):
         # Run episode
         for step in range(max_steps):
             # Action dictionary to feed to step
-            action_dict = dict()
+            agents_action = dict()
 
             # Set used to track agents that didn't skipped the action
-            agents_in_action = set()
+            agents_policy_guided = set()
 
             for agent in range(env_params.n_agents):
-
-                if info["action_required"][agent]:
+                #TODO call only on agents not in deadlock and not done
+                # those in 'agents_action' are also the one which will appear in the observation process
+                if info["decision_required"][agent]:
                     # If an action is required, the actor predicts an action
-                    agents_in_action.add(agent)
-                    action_dict[agent] = policy.act(obs[agent])
+                    agents_policy_guided.add(agent)
+                    agents_action[agent] = policy.act(obs[agent])
+                else: agents_action[agent] = env.get_act(agent)
 
             # Environment step
             step_timer.start()
-            next_obs, all_rewards, done, info = env.step(action_dict)
+            next_obs, rewards, done, info = env.step(agents_action)
             step_timer.end()
 
-            # learning step only when the agent has finished or at switch decision
             for agent in range(env_params.n_agents):
 
-                if agent in agents_in_action or done[agent]:
+                # learning step only for agents at switch/pre-switch decision
+                if agent in agents_policy_guided:
                     learn_timer.start()
-                    policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], obs[agent], done[agent])
+                    policy.step(agent_prev_obs[agent], agent_prev_action[agent], rewards[agent], obs[agent], done[agent])
                     learn_timer.end()
 
                     agent_prev_obs[agent] = copy_obs(obs[agent])
 
-                    if agent not in action_dict:
-                        agent_prev_action[agent] = int(RailEnvActions.DO_NOTHING)
-                    else:
-                        agent_prev_action[agent] = action_dict[agent]
+
+                if agent in agents_action:
+                    agent_prev_action[agent] = agents_action[agent]
+                else:
+                    agent_prev_action[agent] = int(RailEnvActions.DO_NOTHING)
 
                 if next_obs[agent] is not None:
                     obs[agent] = next_obs[agent]
@@ -102,7 +105,7 @@ def train(env_params, train_params):
             if env_params.render:
                 env.show_render()
 
-            if done["__all__"]:
+            if done['__all__'] or env.dl_controller. # TODO check all blocked
                 break
 
         # Epsilon decay

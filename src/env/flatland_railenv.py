@@ -3,8 +3,6 @@ from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
 
 from src.env.env_extensions import StatisticsController, NormalizerController
-from src.utils.deadlocks import DeadlocksController, DeadlocksGraphController
-#NullNormalizerController
 
 
 class FlatlandRailEnv(RailEnv):
@@ -51,11 +49,12 @@ class FlatlandRailEnv(RailEnv):
         :return:
         """
         obs, rewards, dones, info = super().step(action_dict)
-
-        # Normalization phase
-        obs = self.norm_controller.normalize_observations(obs)
+        # Encode information for policy action decision
+        info = self._encode_info(info, obs) # TODO change name when it will be defined it's aim
         # Deadlocks check
         info = self.dl_controller.check_deadlocks(info, obs)
+        # Normalization phase
+        obs = self.norm_controller.normalize_observations(obs)
         # Rewards progress
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress
@@ -85,10 +84,30 @@ class FlatlandRailEnv(RailEnv):
         if self.params.render:
             return self.env_renderer.close_window()
 
+    def get_act(self, agent):
+        # TODO (c'è None sia per no action required sia per deadlock certificata dal deadlock controller) (actually per deadlock, shuoldn't happen anymore)
+        # if agent not in deadlock # move that check prev call
+        #    usae i metodi dell'observer per poter restituire l'action corretta
+
 # private
 
+    def _encode_info(self, info, obs):
+        #TODO
+        # for each agent watch the observation and update info dictionary:
+        # normal case obs is a normal graph so add "decision_required" True
+        # no decision required when obs is returned None
+
+        # (case starvation handled in deadlock controller)
+        # (case pre touch deadlock handled in deadlock controller)
+        return info
+
     def _compute_rewards(self, rewards, dones, info):
-        return rewards  # TODO
+        #TODO
+        # consider dones, starvation and deadlock
+        # rewards for previous action which caused such observation is given to the policy to learn
+        # also will be given prev_step observation and current observation (but not this observation post action performed)
+        return rewards
+
 
 # accessors
 

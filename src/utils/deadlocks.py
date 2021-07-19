@@ -177,24 +177,20 @@ class DeadlocksGraphController:
         :return: the updated information dictionary
     """
     def check_deadlocks(self, info, obs):
+        #TODO also handle starvation here:
+        # fill info
+        # set as deadlock if arrived in the position chosen
         info["deadlocks"] = {}
         for handle in range(self.env.get_num_agents()):
-            graph = obs.observations[handle].graph
-            for _, n in graph.nodes.items():
-                if handle in n['deadlock']:
-                    self.deadlocks[handle] = True
-            info["deadlocks"][handle] = self.deadlocks[handle]
+            graph = obs[handle]
+            if not graph is None:
+                for label, node in graph.nodes.items():
+                    if handle in node['deadlock']:
+                        if node['steps_to_deadlock'] == 0:
+                            self.deadlocks[handle] = True
+                        if :#TODO watch label back if it's a switch
+                            info["deadlocks"][handle] =
         return info
-
-
-
-
-        """
-        Check for new deadlocks, updates info and returns it.
-
-        :param info: The information about each agent
-        :return: the updated information dictionary
-        """
 
     def reset(self, info):
         self.deadlocks = [False]*len(self.env.agents)
@@ -205,3 +201,5 @@ class DeadlocksGraphController:
             info["deadlocks"][a] = False
 
         return info
+
+    # TODO method to check all deadlock considering also starvation agents (they are going to die somewhere)

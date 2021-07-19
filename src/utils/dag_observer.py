@@ -3,6 +3,7 @@ import numpy as np
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.core.grid.grid4 import Grid4TransitionsEnum, Grid4Transitions
 from flatland.core.grid.grid_utils import coordinate_to_position
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.observations import TreeObsForRailEnv
 import heapq
 
@@ -11,20 +12,23 @@ from src.env.flatland_railenv import FlatlandRailEnv
 # handle get many to call get; add priority index to call in that order low to high;
 # in get compute observation graph only on need otherwise reuse the previous structure but recompute deadlock info each time
 # handle deadlock in pre start switch as two nodes graph
-# start
-# is_target
-# is_dead_end on post node
+# start, target, conflict, starvation, deadlock, deadend
 # nodo causa deadlock informazioni dell'agente adversary
-# casi limite quando sei davanti all'arrivo
 'dist_own_target_encountered '
 'dist_position_to_conflict '
 'dist_min_to_target '
 'num_agents_malfunctioning '
 'speed_min_fractional '
 
-# reason about presence of an agent on switch
-# reason about deadlock on switch
+# reason about hen you are in fron of the target    V
+# reason about presence of an agent on switch       V
+# reason about deadlock on switch                   V
 # reason about agent without path to target         V
+
+# when no path to target is admissible:
+# primary choice is dead_edge
+# secondary choice is dead_end
+# remember that the deadlock label will be applied only when two agents TOUCH into an edge
 
 
 TRANS = [
@@ -37,9 +41,10 @@ TRANS = [
 
 class DagObserver(ObservationBuilder):
 
-    def __init__(self, predictor):
+    def __init__(self, predictor, conflict_radius):
         super().__init__()
         self.predictor = predictor
+        self.conflict_radius = conflict_radius
         self.graph = None
         self.observations = dict()
         self.prev_observations = dict()
@@ -70,39 +75,47 @@ class DagObserver(ObservationBuilder):
         working_graph = self.graph
 
         other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
-                                 for iter_handle, a  in enumerate(self.env.agents) if iter_handle != handle]
+                                 for iter_handle, a in enumerate(self.env.agents) if iter_handle != handle]
         steps = 0
         target_flag = False
         deadlock_flag = False
 
+        #prima di tutto check dal controller che l'agent non sia in deadlock else return NONE (that shuoldn't happen anymore)
+        #TODO quando c'è deadlock ritorna labeled node con passi predeadlock come costo (quando passi=0 allora l'agente è vero deadlock)
+        #quando hai deadlock a 0 (ignorando le caselle com agenti nella tua stessa direzione) step davanti a te e 0 dallo switch dietro a te remove edge one direction
         start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position)[::-1]
         start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else self.env.agents[handle].direction
         target = self.env.agents[handle].target[::-1]
         while not self._is_switch(*start_pos, start_dir):
             if start_pos == target: target_flag = True; break
-            if (*start_pos, self._opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True
+            #if (*start_pos, self._opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True
             if self._is_dead_end(*start_pos): start_dir = self._opposite_dir(start_dir)
             x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir)
             start_pos = (x, y)
             steps += 1
-        di_graph.add_node((*start_pos, start_dir), **{"start": True, **self.encode_start_node_attributes(handle)})
+        di_graph.add_node((*start_pos, start_dir), **{"start": True, **self.encode_start_node_attributes(handle, steps)})
         if target_flag:
             di_graph.update(nodes=[((*start_pos, start_dir), {"target": True})])
             return di_graph
-        if deadlock_flag:
+        if self.env.dl_controller.deadlocks[handle]:
             di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True})])
             return di_graph
 
-        if steps != 1 and not len(self.prev_observations) != 0 and handle in self.prev_observations:
+        if steps != 1 and not len(self.prev_observations) != 0 and handle in self.prev_observations: #TODO return None for not decision required
             # reuse previous observation structure
             di_graph = self._copy_graph_structure(self.prev_observations[handle])
         else:
+            # remove edges with a deadlock
+            for dead_edge in self.env.dl_controller.negated_edges:
+                self._remove_edge_and_transition(working_graph, *dead_edge, both_directions=True)
+            self.env.dl_controller.negated_edges = dict()
+
             # add real target in graph
-            di_graph.add_node(target, **{"target":True})
+            di_graph.add_node(target, **{"target": True})
             # start exploration and building of DiGraph
             # add switches near agent's target in DiGraph
             ending_points = []
-            for _, n in self.graph.nodes.items():
+            for _, n in working_graph.nodes.items():
                 if handle in n['targets']:
                     ending_points.append(n)
                     cost, out_dir = n['targets'][handle]
@@ -112,40 +125,46 @@ class DagObserver(ObservationBuilder):
                             di_graph.add_node(node)
                             di_graph.add_edge(node, target, {'weight': cost, 'dir': out_dir})
 
-            # TODO access deadlock detector to exclude bad edges (to save computation)
-
             # -explore target-to-agent without other agents
             if not self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points):
                 di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True})])
+                #TODO act of consequence and send the agent in some non disturbing place
             # -explore path target-to-agent other agents
             for a in np.array(self.env.agents)[not self.env.dl_controller.deadlocks]:
-                # remove busy edges (only opposite direction) from working_graph
-                pos_y, pos_x = a.initial_position if a.position is None else a.position
-                dir = a.initial_direction if a.position is None else a.direction
-                while True:
-                    pos_x, pos_y, dir = self.get_next_oriented_pos(pos_x, pos_y, dir)
-                    if self._is_dead_end(pos_x, pos_y): dir = self._opposite_dir(dir)
-                    if self._is_switch(pos_x, pos_y): break
-                t = self.graph.nodes[(pos_x, pos_y)]["trans_node"][:self._opposite_dir(dir)]
-                [working_graph.remove_edge((pos_x, pos_y), destination_node) for destination_node in t if destination_node != (0,0)]
+                if a.status == RailAgentStatus.ACTIVE or a.status == RailAgentStatus.READY_TO_DEPART:
+                    # remove busy edges (only opposite direction) from working_graph
+                    pos_y, pos_x = a.initial_position if a.position is None else a.position
+                    dir = a.initial_direction if a.position is None else a.direction
+                    if self._is_switch(pos_x, pos_y, dir):
+                        for iter_dir in range(4):
+                            t = working_graph.nodes[(pos_x, pos_y)]["trans_node"][:,iter_dir]
+                            [self._remove_edge_and_transition(working_graph, (pos_x, pos_y), destination_node) for destination_node in t if destination_node != (0,0)]
+                    else:
+                        while True:
+                            if self._is_dead_end(pos_x, pos_y): dir = self._opposite_dir(dir)
+                            if self._is_switch(pos_x, pos_y, dir): break
+                            pos_x, pos_y, dir = self.get_next_oriented_pos(pos_x, pos_y, dir)
+                            steps += 1
+                        t = working_graph.nodes[(pos_x, pos_y)]["trans_node"][:, self._opposite_dir(dir)]
+                        [self._remove_edge_and_transition(working_graph, (pos_x, pos_y), destination_node) for destination_node in t if destination_node != (0,0)]
             self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
 
         # add attributes to nodes based on conflicts
-        radius = self.env.params.observer_params["conflict_radius"]
         agent_ranking_pos = self.prioritized_agents.index(handle)
         for matching_handle in range(agent_ranking_pos):
-            # if the observation graph has a node in common with the other agent graph (compare only x,y) then this node is a conflict node
+            # a conflict node is a common node between the obs DiGraph and the other agent DiGraph (compare only x, y)
             if not self.prev_observations[matching_handle] is None:
                 matching_graph = self.prev_observations[matching_handle]
                 start = None
                 for _, start in matching_graph.nodes.items():
                     if "start" in start: break
                 node_list = set()
-                [node_list.update(nx.descendants_at_distance(matching_graph, start, radius)) for radius in range(radius)]
+                [node_list.update(nx.descendants_at_distance(matching_graph, start, radius)) for radius in range(self.conflict_radius)]
                 possible_conflicts = set()
                 [possible_conflicts.update([(*matching_node[0:2], other_dir) for other_dir in range(4) if other_dir != matching_node[2]]) for matching_node in node_list]
                 for conflict_node in possible_conflicts.intersection(di_graph.nodes.keys()):
-                    di_graph.update(nodes=[(conflict_node, {"conflict": True, **self.encode_conflict_node_attributes(matching_handle)})])
+                    matched_conflict_node = set([(*conflict_node[0:2],d) for d in range(4)]).intersection(node_list)[0]
+                    di_graph.update(nodes=[(conflict_node, {"conflict": True, **self.encode_conflict_node_attributes(matching_handle, start, matched_conflict_node)})])
 
         observation = np.zeros(10)
 
@@ -222,7 +241,7 @@ class DagObserver(ObservationBuilder):
         nx.freeze(self.graph)
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points):
-        path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir)
+        path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir) # TODO shortest_path_cost for start_node
         if path is None: return False
         while not self._is_path_in_graph(directed_graph, path):
             current_node = None
@@ -263,7 +282,7 @@ class DagObserver(ObservationBuilder):
                     continue
                 else:
                     # the transition for this direction is invalid
-                    exploration_graph.remove_edge(current_node, next_node)
+                    self._remove_edge_and_transition(exploration_graph, current_node, next_node)
                     # this case you must have at least a transition possible from your orientation
                     unreachable_node = next_node
                     exploration_node = None
@@ -310,6 +329,93 @@ class DagObserver(ObservationBuilder):
                     path = path[::-1]
             path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
             if path is None: return True
+
+    def _is_path_in_graph(self, di_graph, path):
+        undirected_nodes = [(n[0:1]) for n in di_graph.nodes]
+        return np.all([node in undirected_nodes for node in path])
+        nx.find_cycle()
+
+    def _update_graph_until_switch(self, undirected_graph, current_node, current_orientation, next_node, next_orientation):
+        # find switch
+        # update undirected graph with new edges end remove the one not relevant (no switch)
+        # update transition matrix of current_node in row current_orientation with real node switch
+        start_node_exit_dir = undirected_graph[current_node]["trans_node"][current_orientation].index(next_node)
+        if current_node == next_node:
+            cost = self.graph.nodes[current_node]["dead_end"][current_orientation][start_node_exit_dir] + 1
+        else:
+            cost = undirected_graph.edges[(current_node, next_node)]["weight"] + 1
+        undirected_graph.remove_edge(current_node, next_node)
+
+        node_exit_dir = None
+        dead_end = False
+        while not self._is_switch(*next_node, next_orientation):
+            next_node_directed_destinations = undirected_graph[next_node]["trans_node"][next_orientation]
+            for node_exit_dir, destination_node in enumerate(next_node_directed_destinations):
+                if destination_node != (0, 0):
+                    # remove original edges but leave untouched the transitions
+                    undirected_graph.remove_edge(next_node, destination_node)
+                    if next_node == destination_node:
+                        dead_end = True
+                        next_orientation = self._opposite_dir(next_orientation)
+                        cost += undirected_graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir] + 1
+                    else:
+                        next_orientation = undirected_graph.edges[(next_node, destination_node)]["dir"][destination_node]
+                        cost += undirected_graph.edges[(current_node, next_node)]["weight"] + 1
+                    next_node = destination_node
+                    break
+            if current_node == next_node:
+                break
+        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation), {'weight': cost, "out_dir": node_exit_dir})
+        undirected_graph[current_node]["trans_node"][current_orientation][start_node_exit_dir] = next_node
+        return cost, (*next_node, next_orientation), dead_end
+
+    def _remove_edge_and_transition(self, graph, node1, node2, both_directions=False):
+        graph.remove_edge(node1, node2)
+        transitions_node = graph.nodes[node1]["trans_node"]
+        transitions = graph.nodes[node1]["trans"]
+        for row, destinations in enumerate(transitions_node):
+            for col, destination_node in enumerate(destinations):
+                if destination_node == node2:
+                    transitions_node[row][col] = (0,0)
+                    transitions[row][col] = 0
+        graph.nodes[node1]["trans_node"] = transitions_node
+        graph.nodes[node1]["trans"] = transitions
+        if both_directions: self._remove_edge_and_transition(graph, node2, node1)
+
+    def _get_shorthest_path(self, graph, sources, target, allowed_target_dir):
+        reduced_graph = graph.copy()
+        # remove unfeasible directions
+        feasible_destinations = reduced_graph.nodes[target]["trans_node"][allowed_target_dir]
+        for destination, attr in reduced_graph[target].items():
+            if not destination in feasible_destinations:
+                reduced_graph.remove_edge(destination, target)
+        try:
+            _, path = nx.multi_source_dijkstra(graph, sources, target)
+            return path
+        except:
+            return None
+
+    def _copy_graph_structure(self, param):
+        pass
+
+    def _rank_agents(self):
+        list = dict()
+        if len(self.prev_observations) == 0:
+            return [a.handle for a in
+                    sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
+        else:
+            for handle, agent in enumerate(self.env.agents):
+                start_node = None
+                for _, start_node in self.prev_observations[handle].nodes.items():
+                    if "start" in start_node: break;
+                next_malfunction = agent.malfunction_data["next_malfunction"]
+                malfunction = agent.malfunction_data["malfunction"]
+                velocity = agent.speed_data["speed"]
+                switch = start_node["shortest_path"]
+                distance = start_node["shortest_path_cost"]
+                ratio = ((distance / (next_malfunction + 1 / (malfunction + 1))) / velocity) * switch
+                list.update({handle: ratio})
+        return dict(sorted(list.items(), key=lambda x: x[1])).keys()
 
     def get_next_oriented_pos(self, x, y, orientation):
         """
@@ -363,6 +469,19 @@ class DagObserver(ObservationBuilder):
             if bit == '1': access[k%4] = True
         return access
 
+    def _opposite_dir(self, direction):
+        return (direction+2) % 4
+
+    def _is_switch(self, x, y, dir=None):
+        if dir is None:
+            all_trans = [self.env.rail.get_transitions(y, x, TRANS[dir]).count(1) for dir in range(4)]
+        else:
+            all_trans = self.env.rail.get_transitions(y, x, TRANS[dir]).count(1)
+        return np.max(all_trans) > 1
+
+    def _is_dead_end(self, x, y):
+        return self.env.rail.is_dead_end((y, x))
+
     def encode_node_attributes(self, x, y, dir, prev_steps, targets, next_node=None, prev_node=None, mirror_direction=False, dead_end_detected=False):
         trans = np.array([[*self.env.rail.get_transitions(y, x, TRANS[dir])] for dir in range(4)])
         trans_node_l = ([[(0,0)]*4])*4
@@ -386,117 +505,29 @@ class DagObserver(ObservationBuilder):
             for arry,o in enumerate(trans_node):
                 for arrx,t in enumerate(o):
                     if t == (0, 0): trans_node[arry][arrx] = old_attr["trans_node"][arry][arrx]
-            if len(targets) != 0:
+            if len(old_attr["targets"]) != 0:
                 targets = {**old_attr["targets"], **targets}
         return {"trans": trans, "trans_node": trans_node, "dead_end": dead_end, "targets": targets}
 
-    def _opposite_dir(self, direction):
-        return (direction+2) % 4
+    def encode_conflict_node_attributes(self, agent_handle, start_node, conflict):
+        agent = self.env.agents[agent_handle]
+        conflict_info = dict()
+        conflict_info['velocity'] = agent.speed_data['speed']
+        conflict_info['conflict_distance'] = nx.shortest_path_length(self.prev_observations[agent_handle], start_node, conflict) + 1
+        conflict_info['target_distance'] = start_node['shortest_path_cost']
+        conflict_info['nr_malfunctions'] = agent.malfunction_data['nr_malfunctions']
+        conflict_info['next_malfunctions'] = agent.malfunction_data['next_malfunctions']
+        conflict_info['malfunction_rate'] = agent.malfunction_data['malfunction_rate']
+        conflict_info['malfunction'] = agent.malfunction_data['malfunction']
+        return {agent: conflict_info}
 
-    def _is_switch(self, x, y, dir=None):
-        if dir is None:
-            all_trans = [self.env.rail.get_transitions(y, x, TRANS[dir]).count(1) for dir in range(4)]
-        else:
-            all_trans = self.env.rail.get_transitions(y, x, TRANS[dir]).count(1)
-        return np.max(all_trans) > 1
-
-    def _is_dead_end(self, x, y):
-        return self.env.rail.is_dead_end((y, x))
-
-    def _is_path_in_graph(self, di_graph, path):
-        undirected_nodes = [(n[0:1]) for n in di_graph.nodes]
-        return np.all([node in undirected_nodes for node in path])
-        nx.find_cycle()
-
-    def _update_graph_until_switch(self, undirected_graph, current_node, current_orientation, next_node, next_orientation):
-        # find switch
-        # update undirected graph with new edges end remove the one not relevant (no switch)
-        # update transition matrix of current_node in row current_orientation with real node switch
-        start_node_exit_dir = undirected_graph[current_node]["trans_node"][current_orientation].index(next_node)
-        if current_node == next_node:
-            cost = self.graph.nodes[current_node]["dead_end"][current_orientation][start_node_exit_dir] + 1
-        else:
-            cost = undirected_graph.edges[(current_node, next_node)]["weight"] + 1
-        undirected_graph.remove_edge(current_node, next_node)
-
-        node_exit_dir = None
-        dead_end = False
-        while not self._is_switch(*next_node, next_orientation):
-            next_node_directed_destinations = undirected_graph[next_node]["trans_node"][next_orientation]
-            for node_exit_dir, destination_node in enumerate(next_node_directed_destinations):
-                if destination_node != (0, 0):
-                    # remove original edges
-                    undirected_graph.remove_edge(next_node, destination_node)
-                    if next_node == destination_node:
-                        dead_end = True
-                        next_orientation = self._opposite_dir(next_orientation)
-                        cost += undirected_graph.nodes[current_node]["dead_end"][current_orientation][node_exit_dir] + 1
-                    else:
-                        next_orientation = undirected_graph.edges[(next_node, destination_node)]["dir"][destination_node]
-                        cost += undirected_graph.edges[(current_node, next_node)]["weight"] + 1
-                    next_node = destination_node
-                    break
-            if current_node == next_node:
-                break
-        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation), {'weight': cost, "out_dir": node_exit_dir})
-        undirected_graph[current_node]["trans_node"][current_orientation][start_node_exit_dir] = next_node
-        return cost, (*next_node, next_orientation), dead_end
-
-    def _get_shorthest_path(self, graph, sources, target, allowed_target_dir):
-        reduced_graph = graph.copy()
-        # remove unfeasible directions
-        feasible_destinations = reduced_graph.nodes[target]["trans_node"][allowed_target_dir]
-        for destination, attr in reduced_graph[target].items():
-            if not destination in feasible_destinations:
-                reduced_graph.remove_edge(destination, target)
-        try:
-            _, path = nx.multi_source_dijkstra(graph, sources, target)
-            return path
-        except:
-            return None
-
-    def _rank_agents(self):
-        list = dict()
-        if len(self.prev_observations) == 0:
-            return [a.handle for a in sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
-        else:
-            for handle, agent in enumerate(self.env.agents):
-                start_node = None
-                for _, start_node in self.prev_observations[handle].nodes.items():
-                    if "start" in start_node: break;
-                next_malfunction = agent.malfunction_data["next_malfunction"]
-                malfunction = agent.malfunction_data["malfunction"]
-                velocity = agent.speed_data["speed"]
-                switch = start_node["shortest_path"]
-                distance = start_node["shortest_path_cost"]
-                ratio = ((distance/(next_malfunction+1/(malfunction+1)))/velocity)*switch
-                list.update({handle: ratio})
-        return dict(sorted(list.items(), key=lambda x: x[1])).keys()
-
-    def _rank_agents(self):
-        list = dict()
-        if len(self.prev_observations) == 0:
-            return [a.handle for a in
-                    sorted(self.env.agents, key=lambda agent: agent.speed_data["speed"], reverse=True)]
-        else:
-            for handle, agent in enumerate(self.env.agents):
-                start_node = None
-                for _, start_node in self.prev_observations[handle].nodes.items():
-                    if "start" in start_node: break;
-                next_malfunction = agent.malfunction_data["next_malfunction"]
-                malfunction = agent.malfunction_data["malfunction"]
-                velocity = agent.speed_data["speed"]
-                switch = start_node["shortest_path"]
-                distance = start_node["shortest_path_cost"]
-                ratio = ((distance / (next_malfunction + 1 / (malfunction + 1))) / velocity) * switch
-                list.update({handle: ratio})
-        return dict(sorted(list.items(), key=lambda x: x[1])).keys()
-
-    def encode_conflict_node_attributes(self, agent_handle):
-        pass
-
-    def encode_start_node_attributes(self, agent_handle):
-        pass
-
-    def _copy_graph_structure(self, param):
-        pass
+    def encode_start_node_attributes(self, agent_handle, switch_distance):
+        agent = self.env.agents[agent_handle]
+        start_info = dict()
+        start_info['velocity'] = agent.speed_data['speed']
+        start_info['switch_distance'] = switch_distance
+        start_info['nr_malfunctions'] = agent.malfunction_data['nr_malfunctions']
+        start_info['next_malfunctions'] = agent.malfunction_data['next_malfunctions']
+        start_info['malfunction_rate'] = agent.malfunction_data['malfunction_rate']
+        start_info['malfunction'] = agent.malfunction_data['malfunction']
+        return start_info
