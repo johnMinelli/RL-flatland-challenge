@@ -77,19 +77,22 @@ class DagObserver(ObservationBuilder):
         other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
                                  for iter_handle, a in enumerate(self.env.agents) if iter_handle != handle]
         steps = 0
+        steps_to_deadlock = 0
         target_flag = False
         deadlock_flag = False
 
-        #prima di tutto check dal controller che l'agent non sia in deadlock else return NONE (that shuoldn't happen anymore)
-        #TODO quando c'è deadlock ritorna labeled node con passi predeadlock come costo (quando passi=0 allora l'agente è vero deadlock)
-        #quando hai deadlock a 0 (ignorando le caselle com agenti nella tua stessa direzione) step davanti a te e 0 dallo switch dietro a te remove edge one direction
         start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else self.env.agents[handle].position)[::-1]
         start_dir = self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else self.env.agents[handle].direction
         target = self.env.agents[handle].target[::-1]
+        node_behind = self.get_next_oriented_pos(*start_pos, self._opposite_dir(start_dir))
+        switch_behind = self._is_switch(node_behind)
+
         while not self._is_switch(*start_pos, start_dir):
             if start_pos == target: target_flag = True; break
-            #if (*start_pos, self._opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True
+            if (*start_pos, start_dir) in other_agents_position: steps_to_deadlock -= 1
+            if (*start_pos, self._opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True; steps_to_deadlock += steps
             if self._is_dead_end(*start_pos): start_dir = self._opposite_dir(start_dir)
+            # iterate
             x, y, start_dir = self.get_next_oriented_pos(*start_pos, start_dir)
             start_pos = (x, y)
             steps += 1
@@ -97,19 +100,18 @@ class DagObserver(ObservationBuilder):
         if target_flag:
             di_graph.update(nodes=[((*start_pos, start_dir), {"target": True})])
             return di_graph
-        if self.env.dl_controller.deadlocks[handle]:
-            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True})])
+        if deadlock_flag:
+            if steps_to_deadlock == 0 and switch_behind:
+                # the edge is full so remove from the graph
+                self._remove_edge_and_transition(self.graph, node_behind, (*start_pos, start_dir))
+            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": steps_to_deadlock })])
             return di_graph
 
-        if steps != 1 and not len(self.prev_observations) != 0 and handle in self.prev_observations: #TODO return None for not decision required
-            # reuse previous observation structure
-            di_graph = self._copy_graph_structure(self.prev_observations[handle])
-        else:
-            # remove edges with a deadlock
-            for dead_edge in self.env.dl_controller.negated_edges:
-                self._remove_edge_and_transition(working_graph, *dead_edge, both_directions=True)
-            self.env.dl_controller.negated_edges = dict()
-
+        if steps > 1:  # straight road
+            return None
+        elif steps == 0:  # switch
+            self._copy_graph_structure(di_graph, self.prev_observations[handle])
+        else:  # pre-switch
             # add real target in graph
             di_graph.add_node(target, **{"target": True})
             # start exploration and building of DiGraph
@@ -123,12 +125,16 @@ class DagObserver(ObservationBuilder):
                         if n["trans"][access][out_dir] == 1:
                             node = (*n, access)
                             di_graph.add_node(node)
-                            di_graph.add_edge(node, target, {'weight': cost, 'dir': out_dir})
+                            di_graph.add_edge(node, target, **{'weight': cost, 'dir': out_dir})
 
             # -explore target-to-agent without other agents
-            if not self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points):
+            shortest_info = self._build_paths_in_directed_graph(working_graph.copy(True), di_graph, start_pos, start_dir, ending_points)
+            if shortest_info is None:
                 di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True})])
                 #TODO act of consequence and send the agent in some non disturbing place
+            else:
+                di_graph.update(nodes=[((*start_pos, start_dir),
+                                        {"shortest_path_cost": shortest_info[0], "shortest_path": shortest_info[1]})])
             # -explore path target-to-agent other agents
             for a in np.array(self.env.agents)[not self.env.dl_controller.deadlocks]:
                 if a.status == RailAgentStatus.ACTIVE or a.status == RailAgentStatus.READY_TO_DEPART:
@@ -241,8 +247,8 @@ class DagObserver(ObservationBuilder):
         nx.freeze(self.graph)
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points):
-        path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir) # TODO shortest_path_cost for start_node
-        if path is None: return False
+        shortest_cost, path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir)
+        if path is None: return None
         while not self._is_path_in_graph(directed_graph, path):
             current_node = None
             current_orientation = start_dir
@@ -261,7 +267,7 @@ class DagObserver(ObservationBuilder):
                                                                                        current_node, current_orientation,
                                                                                        next_node, next_orientation)
                     directed_graph.add_node((*next_node, next_orientation))
-                    directed_graph.add_edge((*current_node, current_orientation), destination,{'weight': cost, "out_dir": node_exit_dir})
+                    directed_graph.add_edge((*current_node, current_orientation), destination, **{'weight': cost, "out_dir": node_exit_dir})
                     # update iterators and continue
                     current_node = destination[0:2]
                     current_orientation = destination[2]
@@ -275,7 +281,7 @@ class DagObserver(ObservationBuilder):
                                                                                         current_node, self._opposite_dir(current_orientation))
                     directed_graph.add_node(destination, **{"dead_end": True})
                     directed_graph.add_edge((*current_node, current_orientation), destination,
-                                            {'weight': cost, "out_dir": node_exit_dir})
+                                            **{'weight': cost, "out_dir": node_exit_dir})
                     # update iterators and continue flow
                     current_node = destination[0:2]
                     current_orientation = destination[2]
@@ -302,13 +308,13 @@ class DagObserver(ObservationBuilder):
                             if destination_node in next_node_directed_destinations:
                                 # (path resolution) immediate dead_end
                                 directed_graph.add_edge((*current_node, current_orientation),(*destination_node, next_orientation),
-                                                        {'weight': cost, "out_dir": node_exit_dir})
+                                                        **{'weight': cost, "out_dir": node_exit_dir})
                                 dead_end_cost, dead_end_destination, _ = self._update_graph_until_switch(exploration_graph,
                                                                                                       destination_node, next_orientation,
                                                                                                       destination_node, self._opposite_dir(next_orientation))
                                 directed_graph.add_node(dead_end_destination, **{"dead_end": True})
                                 directed_graph.add_edge((*destination_node, next_orientation), dead_end_destination,
-                                                        {'weight': dead_end_cost, "out_dir": node_directed_destinations.index(destination_node)})
+                                                        **{'weight': dead_end_cost, "out_dir": node_directed_destinations.index(destination_node)})
                             # else:
                                 # (path resolution) 1 step ahead dead_end
                         elif exploration_node is None: exploration_node = destination_node
@@ -320,15 +326,16 @@ class DagObserver(ObservationBuilder):
                     cost = exploration_graph.edges[(current_node, next_node)]["weight"]
                     node_exit_dir = node_directed_destinations.index(next_node)
                     directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
-                                            {'weight': cost, "out_dir": node_exit_dir})
-                    path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
-                    if path is None: return True
+                                            **{'weight': cost, "out_dir": node_exit_dir})
+                    _, path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
+                    if path is None: break
                     current_node = None
                     current_orientation = next_orientation
                     i = 0
                     path = path[::-1]
-            path = self._get_shorthest_path(exploration_graph, ending_points, next_node, node_exit_dir)
-            if path is None: return True
+            shortest_cost, path = self._get_shorthest_path(exploration_graph, ending_points, start_pos, start_dir)
+            if path is None: return None
+        return shortest_cost, path
 
     def _is_path_in_graph(self, di_graph, path):
         undirected_nodes = [(n[0:1]) for n in di_graph.nodes]
@@ -365,7 +372,7 @@ class DagObserver(ObservationBuilder):
                     break
             if current_node == next_node:
                 break
-        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation), {'weight': cost, "out_dir": node_exit_dir})
+        undirected_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation), **{'weight': cost, "out_dir": node_exit_dir})
         undirected_graph[current_node]["trans_node"][current_orientation][start_node_exit_dir] = next_node
         return cost, (*next_node, next_orientation), dead_end
 
@@ -390,13 +397,21 @@ class DagObserver(ObservationBuilder):
             if not destination in feasible_destinations:
                 reduced_graph.remove_edge(destination, target)
         try:
-            _, path = nx.multi_source_dijkstra(graph, sources, target)
-            return path
+            cost, path = nx.multi_source_dijkstra(graph, sources, target)
+            return cost, path
         except:
             return None
 
-    def _copy_graph_structure(self, param):
-        pass
+    def _copy_graph_structure(self, new_graph, old_graph):
+        new_graph.add_nodes_from(old_graph)
+        for label, attr in old_graph.nodes.items():
+            if "conflict" in attr: continue
+            if "start" in attr:
+                new_graph.update(nodes=[(label,
+                         {"shortest_path_cost": attr["shortest_path_cost"], "shortest_path": attr["shortest_path"]})])
+            else: new_graph.update(nodes=[(label, attr)])
+        for label, attr in old_graph.edges.items():
+            new_graph.add_edge(*label, **attr)
 
     def _rank_agents(self):
         list = dict()
