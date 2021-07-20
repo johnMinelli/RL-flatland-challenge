@@ -70,8 +70,8 @@ def train(env_params, train_params):
             agents_policy_guided = set()
 
             for agent in range(env_params.n_agents):
-                #TODO call only on agents not in deadlock and not done
-                # those in 'agents_action' are also the one which will appear in the observation process
+                if env.dl_controller.deadlocks[agent]:
+                    continue
                 if info["decision_required"][agent]:
                     # If an action is required, the actor predicts an action
                     agents_policy_guided.add(agent)
@@ -105,7 +105,7 @@ def train(env_params, train_params):
             if env_params.render:
                 env.show_render()
 
-            if done['__all__'] or env.dl_controller. # TODO check all blocked
+            if done['__all__'] or env.dl_controller.check_all_blocked():
                 break
 
         # Epsilon decay

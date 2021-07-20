@@ -1,5 +1,5 @@
 import numpy as np
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.utils.rendertools import RenderTool
 
 from src.env.env_extensions import StatisticsController, NormalizerController
@@ -32,10 +32,13 @@ class FlatlandRailEnv(RailEnv):
         if self.params.render:
             self.env_renderer = RenderTool(self, show_debug=True, screen_height=1080, screen_width=1920, gl="PGL")
             self.env_renderer.set_new_rail()
-        # Normalization phase
-        obs = self.norm_controller.normalize_observations(obs)
+
+        # Encode information for policy action decision
+        info = self._encode_info(info, obs)
         # Reset deadlocks
         info = self.dl_controller.reset(info)
+        # Normalization phase
+        obs = self.norm_controller.normalize_observations(obs)
         # Reset statistics
         self.stats_controller.reset()
 
@@ -85,6 +88,7 @@ class FlatlandRailEnv(RailEnv):
             return self.env_renderer.close_window()
 
     def get_act(self, agent):
+        return RailEnvActions.MOVE_FORWARD
         # TODO (c'è None sia per no action required sia per deadlock certificata dal deadlock controller) (actually per deadlock, shuoldn't happen anymore)
         # if agent not in deadlock # move that check prev call
         #    usae i metodi dell'observer per poter restituire l'action corretta
@@ -92,6 +96,7 @@ class FlatlandRailEnv(RailEnv):
 # private
 
     def _encode_info(self, info, obs):
+        info["decision_required"] = {handle: True for handle in self.get_agent_handles()}
         #TODO
         # for each agent watch the observation and update info dictionary:
         # normal case obs is a normal graph so add "decision_required" True

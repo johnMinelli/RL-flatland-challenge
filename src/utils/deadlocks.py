@@ -1,6 +1,8 @@
 from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
 
+from src.utils.rail_utils import *
+
 
 def check_if_all_blocked(env):
     """
@@ -186,10 +188,15 @@ class DeadlocksGraphController:
             if not graph is None:
                 for label, node in graph.nodes.items():
                     if handle in node['deadlock']:
+                        start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else
+                                     self.env.agents[handle].position)[::-1]
+                        start_dir = (self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else
+                                    self.env.agents[handle].direction)
                         if node['steps_to_deadlock'] == 0:
                             self.deadlocks[handle] = True
-                        if :#TODO watch label back if it's a switch
-                            info["deadlocks"][handle] =
+                        if is_switch(self.env.rail, *get_next_oriented_pos(self.env.rail, *start_pos, opposite_dir(start_dir))):
+                            info["deadlocks"][handle] = True
+                        break
         return info
 
     def reset(self, info):
@@ -202,4 +209,6 @@ class DeadlocksGraphController:
 
         return info
 
-    # TODO method to check all deadlock considering also starvation agents (they are going to die somewhere)
+    #TODO method to check all deadlock considering also starvation agents (they are going to die somewhere)
+    def check_all_blocked(self):
+        return False
