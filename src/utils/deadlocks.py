@@ -1,3 +1,4 @@
+import numpy as np
 from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
 
@@ -170,6 +171,7 @@ class DeadlocksGraphController:
     def __init__(self, env):
         self.env = env
         self.deadlocks = [False] * len(self.env.agents)
+        self.starvation = [False] * len(self.env.agents)
         self.negated_edges = dict()
 
     """
@@ -183,6 +185,7 @@ class DeadlocksGraphController:
         # fill info
         # set as deadlock if arrived in the position chosen
         info["deadlocks"] = {}
+        info["starvation"] = {}
         for handle in range(self.env.get_num_agents()):
             graph = obs[handle]
             if not graph is None:
@@ -197,6 +200,12 @@ class DeadlocksGraphController:
                         if is_switch(self.env.rail, *get_next_oriented_pos(self.env.rail, *start_pos, opposite_dir(start_dir))):
                             info["deadlocks"][handle] = True
                         break
+                    elif handle in node['starvation']:
+                        self.starvation[handle] = True
+                        info["starvation"][handle] = True
+                    else:
+                        info["deadlocks"][handle] = False
+                        info["starvation"][handle] = False
         return info
 
     def reset(self, info):
@@ -211,4 +220,4 @@ class DeadlocksGraphController:
 
     #TODO method to check all deadlock considering also starvation agents (they are going to die somewhere)
     def check_all_blocked(self):
-        return False
+        return np.all(self.deadlocks) and np.all(self.starvation)
