@@ -88,13 +88,8 @@ class FlatlandRailEnv(RailEnv):
             return self.env_renderer.close_window()
 
     def get_act(self, agent):
-        if self.dl_controller.deadlocks[agent] or self.dl_controller.starvation[agent] or not self.action_required(agent):
-            return RailEnvActions.DO_NOTHING
-        else:
-            return RailEnvActions.MOVE_FORWARD
-        # TODO (c'è None sia per no action required sia per deadlock certificata dal deadlock controller) (actually per deadlock, shuoldn't happen anymore)
-        # if agent not in deadlock # move that check prev call
-        #    usae i metodi dell'observer per poter restituire l'action corretta
+        #TODO Verificare che il move forward sia corretto
+        return RailEnvActions.MOVE_FORWARD
 
 # private
 
@@ -116,21 +111,14 @@ class FlatlandRailEnv(RailEnv):
                 info["decision_required"][i_agent] = False
             else:
                 info["decision_required"][i_agent] = True
-        #info["decision_required"] = {handle: True for handle in self.get_agent_handles()}
-        #TODO
-        # for each agent watch the observation and update info dictionary:
-        # normal case obs is a normal graph so add "decision_required" True
-        # no decision required when obs is returned None
 
         # (case starvation handled in deadlock controller)
         # (case pre touch deadlock handled in deadlock controller)
         return info
 
     def _compute_rewards(self, rewards, dones, info):
-        #TODO
-        # consider dones, starvation and deadlock
         # rewards for previous action which caused such observation is given to the policy to learn
-        # also will be given prev_step observation and current observation (but not this observation post action performed)
+        # also will be given prev_step observation and current observation
         for i_agent, agent in enumerate(self.agents):
             if dones[i_agent]:
                 rewards[i_agent] = self.params.rewards.goal_reward

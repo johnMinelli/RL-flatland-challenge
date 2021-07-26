@@ -181,8 +181,7 @@ class DeadlocksGraphController:
         :return: the updated information dictionary
     """
     def check_deadlocks(self, info, obs):
-        #TODO also handle starvation here:
-        # fill info
+        #TODO:
         # set as deadlock if arrived in the position chosen
         info["deadlocks"] = {}
         info["starvation"] = {}
@@ -218,6 +217,5 @@ class DeadlocksGraphController:
 
         return info
 
-    #TODO method to check all deadlock considering also starvation agents (they are going to die somewhere)
     def check_all_blocked(self):
         return np.all(self.deadlocks) and np.all(self.starvation)

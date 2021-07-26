@@ -70,7 +70,7 @@ def train(env_params, train_params):
             agents_policy_guided = set()
 
             for agent in range(env_params.n_agents):
-                if env.dl_controller.deadlocks[agent]:
+                if env.dl_controller.deadlocks[agent] or not env.action_required(agent):
                     continue
                 if info["decision_required"][agent]:
                     # If an action is required, the actor predicts an action
@@ -97,6 +97,7 @@ def train(env_params, train_params):
                 if agent in agents_action:
                     agent_prev_action[agent] = agents_action[agent]
                 else:
+                    #TODO verifica che sia corretto quando il do nothing è imposto dal enviroment
                     agent_prev_action[agent] = int(RailEnvActions.DO_NOTHING)
 
                 if next_obs[agent] is not None:
