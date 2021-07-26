@@ -342,9 +342,11 @@ class DagObserver(ObservationBuilder):
         return shortest_cost, path
 
     def _is_path_in_graph(self, di_graph, path):
-        undirected_nodes = [(n[0:1]) for n in di_graph.nodes]
-        return np.all([node in undirected_nodes for node in path])
-        nx.find_cycle()
+        target = next((n for n,a in di_graph.nodes.items() if ("target" in a and a["target"] == True)), None)
+        try: exist_di_path = nx.multi_source_dijkstra(di_graph, [(*path[0], i) for i in range(4)], target) != (None, None)
+        except: return False
+        undirected_nodes = [(n[0:1]) for n,a in di_graph.nodes.items()]
+        return np.all([node in undirected_nodes for node in [path[0], path[-1]]]) and exist_di_path
 
     def _update_graph_until_switch(self, undirected_graph, current_node, current_orientation, next_node, next_orientation):
         # find switch
