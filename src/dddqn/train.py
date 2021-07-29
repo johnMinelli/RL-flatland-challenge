@@ -70,7 +70,7 @@ def train(env_params, train_params):
             agents_policy_guided = set()
 
             for agent in range(env_params.n_agents):
-                if env.dl_controller.deadlocks[agent] or not env.action_required(agent):
+                if env.dl_controller.deadlocks[agent] or not env.action_required(env.agents[agent]):
                     continue
                 if info["decision_required"][agent]:
                     # If an action is required, the actor predicts an action

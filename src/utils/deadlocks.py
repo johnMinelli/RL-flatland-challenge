@@ -170,8 +170,8 @@ class DeadlocksGraphController:
 
     def __init__(self, env):
         self.env = env
-        self.deadlocks = [False] * len(self.env.agents)
-        self.starvation = [False] * len(self.env.agents)
+        self.deadlocks = [False] * self.env.number_of_agents
+        self.starvations = [False] * self.env.number_of_agents
         self.negated_edges = dict()
 
     """
@@ -181,15 +181,16 @@ class DeadlocksGraphController:
         :return: the updated information dictionary
     """
     def check_deadlocks(self, info, obs):
-        #TODO:
-        # set as deadlock if arrived in the position chosen
+        #TODO set as deadlock status if arrived in the position chosen
         info["deadlocks"] = {}
-        info["starvation"] = {}
+        info["starvations"] = {}
         for handle in range(self.env.get_num_agents()):
+            info["deadlocks"][handle] = False
+            info["starvations"][handle] = False
             graph = obs[handle]
             if not graph is None:
                 for label, node in graph.nodes.items():
-                    if handle in node['deadlock']:
+                    if "deadlock" in node:
                         start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else
                                      self.env.agents[handle].position)[::-1]
                         start_dir = (self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else
@@ -199,12 +200,10 @@ class DeadlocksGraphController:
                         if is_switch(self.env.rail, *get_next_oriented_pos(self.env.rail, *start_pos, opposite_dir(start_dir))):
                             info["deadlocks"][handle] = True
                         break
-                    elif handle in node['starvation']:
-                        self.starvation[handle] = True
-                        info["starvation"][handle] = True
-                    else:
-                        info["deadlocks"][handle] = False
-                        info["starvation"][handle] = False
+                    elif "starvation" in node:
+                        self.starvations[handle] = True
+                        info["starvations"][handle] = True
+
         return info
 
     def reset(self, info):
@@ -212,10 +211,11 @@ class DeadlocksGraphController:
         self.negated_edges = dict()
 
         info["deadlocks"] = {}
+        info["starvations"] = {}
         for a in range(self.env.get_num_agents()):
             info["deadlocks"][a] = False
 
         return info
 
     def check_all_blocked(self):
-        return np.all(self.deadlocks) and np.all(self.starvation)
+        return np.all(self.deadlocks) and np.all(self.starvations)
