@@ -100,7 +100,7 @@ class DagObserver(ObservationBuilder):
         elif steps > 1:  # straight road
             return None
 
-        elif steps == 0:  # switch
+        elif steps == 0 and [l for l, s in self.prev_observations[handle].nodes.items() if "start" in s] == [(*start_pos, start_dir)]:  # switch
             self._copy_graph_structure(di_graph, self.prev_observations[handle])
             observation = di_graph
 
@@ -168,8 +168,8 @@ class DagObserver(ObservationBuilder):
                         possible_conflicts = set()
                         [possible_conflicts.update([(*matching_node[0:2], other_dir) for other_dir in range(4) if len(matching_node) > 2 and other_dir != matching_node[2]]) for matching_node in node_list]
                         for conflict_node in possible_conflicts.intersection(di_graph.nodes.keys()):
-                            matched_conflict_node = set([(*conflict_node[0:2],d) for d in range(4)]).intersection(node_list)[0]
-                            di_graph.update(nodes=[(conflict_node, {"conflict": True, **self.encode_conflict_node_attributes(matching_handle, start_node, matched_conflict_node)})])
+                            matched_conflict_node = list(set([(*conflict_node[0:2],d) for d in range(4)]).intersection(node_list))[0]
+                            di_graph.update(nodes=[(conflict_node, {"conflict": True, **self.encode_conflict_node_attributes(matching_handle, (start_label, start_node), matched_conflict_node)})])
 
             observation = di_graph
 
@@ -213,7 +213,14 @@ class DagObserver(ObservationBuilder):
                 start_x, start_y, start_dir = start_points.pop()
                 x, y, dir = get_next_pos(start_x, start_y, start_dir)
                 start_edge_exit = dir
-                if visited[y, x]: continue
+                transition_complete = True
+                if is_switch(self.env.rail, x, y):
+                    for directions, destinations in zip(self.graph.nodes[(start_x, start_y)]["trans"], self.graph.nodes[(start_x, start_y)]["trans_node"]):
+                        for direction, destination in zip(directions, destinations):
+                            if direction == 0 and destination != (0, 0) or direction != 0 and destination == (0, 0):
+                                transition_complete = False; break
+
+                if visited[y, x] and transition_complete: continue
                 while True:
                     steps += 1
                     if is_switch(self.env.rail, x, y):
@@ -230,7 +237,7 @@ class DagObserver(ObservationBuilder):
                                                                    'key': opposite_dir(dir)})
                         # and continue visit in other directions
                         [start_points.append((x, y, new_dir)) for new_dir, accessible in enumerate(get_allowed_directions(self.env.rail, x, y))
-                         if accessible and new_dir != opposite_dir(dir)]
+                            if accessible and new_dir != opposite_dir(dir)]
                         visited[y, x] = True
                         break
                     elif is_dead_end(self.env.rail, x, y):
@@ -295,7 +302,8 @@ class DagObserver(ObservationBuilder):
                     continue
                 else:
                     # the edge for this direction is invalid
-                    invalid_transitions.append((current_node, current_orientation, next_node))
+                    if (current_node, current_orientation, next_node) not in invalid_transitions:
+                        invalid_transitions.append((current_node, current_orientation, next_node))
                     # this case you must have at least a transition possible from your orientation
                     unreachable_node = next_node
                     exploration_node = None
@@ -336,7 +344,6 @@ class DagObserver(ObservationBuilder):
                 node_exit_dir = node_directed_destinations.index(next_node)
                 next_orientation = opposite_dir(exploration_graph.get_edge_data(current_node, next_node, node_exit_dir)["exitpoint"][next_node])
                 cost = exploration_graph.get_edge_data(current_node, next_node, node_exit_dir)["weight"]
-                node_exit_dir = node_directed_destinations.index(next_node)
                 directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
                                         **{'weight': cost, "out_dir": node_exit_dir})
                 _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, next_node, node_exit_dir)
@@ -414,33 +421,38 @@ class DagObserver(ObservationBuilder):
 
     def _get_shorthest_path(self, graph, invalid_transitions, sources, target, allowed_target_dir):
         # shallow copy of the graph: don't modify node attributes
+        print("start")
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
-
-        for current, orientation, next in invalid_transitions:
+        for current, orientation, next in invalid_transitions[::-1]:
             # prev = [prev for prev in [[label for key, edge_data in general_graph[label][current].items() if
             #             edge_data["exitpoint"][current] == opposite_dir(orientation)] for label, a in general_graph.nodes.items() if
             #                 current in general_graph[label]] if len(prev)>0][0][0]
-            previous = {edge_data["weight"]:label for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)}
-            prev = previous[sorted(previous)[0]]
+            # previous = {edge_data["weight"]:label for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)}
+            # prev = previous[sorted(previous)[0]]
+            previous = [label for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)]
             cloned_node = (*current, orientation)
             reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
-
-            for end, data in general_graph[prev].items():
-                if end == current:
-                    [reversed_graph.add_edge(cloned_node, prev, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
-                    break
+            for end, data in reversed_graph[current].items():
+                if not end in previous:
+                    [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
             for end, data in general_graph[current].items():
-                if end != next: [reversed_graph.add_edge(end, cloned_node, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
-                else:
+                if end == next:
+                    [reversed_graph.add_edge(next, cloned_node, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
                     edge_set = deepcopy(data.items())
                     [reversed_graph.remove_edge(next, current, key=key) for key, edge_data in edge_set]
+                    print("removed ", next, " ", current, " ", "^^^", edge_set)
+        print("end1")
+
         # remove unfeasible directions
         feasible_destinations = reversed_graph.nodes[target]["trans_node"][allowed_target_dir]
         for destination, attr in general_graph[target].items():
             if not destination in feasible_destinations:
                 for edge_key in [a["exitpoint"][target] for i, a in attr.items()]:
-                    reversed_graph.remove_edge(destination, target, key=edge_key)
+                    try: reversed_graph.remove_edge(destination, target, key=edge_key)
+                    except: pass
+        print("end2")
+
         try:
             cost, path = nx.multi_source_dijkstra(reversed_graph, sources, target)
             path = [node[0:2] for node in path][::-1]
@@ -451,10 +463,10 @@ class DagObserver(ObservationBuilder):
     def _copy_graph_structure(self, new_graph, old_graph):
         new_graph.add_nodes_from(old_graph)
         for label, attr in old_graph.nodes.items():
-            if "conflict" in attr: continue
             if "start" in attr:
                 new_graph.update(nodes=[(label,
                          {"shortest_path_cost": attr["shortest_path_cost"], "shortest_path": attr["shortest_path"]})])
+            if "conflict" in attr: continue
             else: new_graph.update(nodes=[(label, attr)])
         for label, attr in old_graph.edges.items():
             new_graph.add_edge(*label, **attr)
@@ -513,17 +525,17 @@ class DagObserver(ObservationBuilder):
                 targets_found = {**old_attr["targets"], **targets_found}
         return {"trans": trans, "trans_node": trans_node, "dead_end": dead_end, "targets": targets_found}
 
-    def encode_conflict_node_attributes(self, agent_handle, start_node, conflict):
+    def encode_conflict_node_attributes(self, agent_handle, start, conflict):
         agent = self.env.agents[agent_handle]
         conflict_info = dict()
         conflict_info['velocity'] = agent.speed_data['speed']
-        conflict_info['conflict_distance'] = nx.shortest_path_length(self.prev_observations[agent_handle], start_node, conflict) + 1
-        conflict_info['target_distance'] = start_node['shortest_path_cost']
+        conflict_info['conflict_distance'] = nx.shortest_path_length(self.prev_observations[agent_handle], start[0], conflict) + 1
+        conflict_info['target_distance'] = start[1]['shortest_path_cost']
         conflict_info['nr_malfunctions'] = agent.malfunction_data['nr_malfunctions']
-        conflict_info['next_malfunctions'] = agent.malfunction_data['next_malfunctions']
+        conflict_info['next_malfunctions'] = agent.malfunction_data['next_malfunction']
         conflict_info['malfunction_rate'] = agent.malfunction_data['malfunction_rate']
         conflict_info['malfunction'] = agent.malfunction_data['malfunction']
-        return {agent: conflict_info}
+        return {agent_handle: conflict_info}
 
     def encode_start_node_attributes(self, agent_handle, switch_distance):
         agent = self.env.agents[agent_handle]

@@ -114,7 +114,8 @@ class FlatlandRailEnv(RailEnv):
             info["decision_required"][i_agent] = True
             for _, start_node in obs[i_agent].nodes.items():
                 if "start" in start_node: break
-            switch = start_node["shortest_path"]
+            try: switch = start_node["shortest_path"]
+            except: pass
             distance = start_node["shortest_path_cost"]
             info["shortest_path"][i_agent] = switch
             info["shortest_path_cost"][i_agent] = distance
