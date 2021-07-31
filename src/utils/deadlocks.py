@@ -197,7 +197,7 @@ class DeadlocksGraphController:
                                     self.env.agents[handle].direction)
                         if node['steps_to_deadlock'] == 0:
                             self.deadlocks[handle] = True
-                        if is_switch(self.env.rail, *get_next_oriented_pos(self.env.rail, *start_pos, opposite_dir(start_dir))):
+                        if is_switch(self.env.rail, *get_next_pos(*start_pos, opposite_dir(start_dir))):
                             info["deadlocks"][handle] = True
                         break
                     elif "starvation" in node:

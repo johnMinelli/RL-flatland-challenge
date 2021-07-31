@@ -54,7 +54,6 @@ def train(env_params, train_params):
 
         reset_timer.start()
         obs, info = env.reset()
-        obs, info = env.reset()
         reset_timer.end()
 
         # Build initial agent-specific observations

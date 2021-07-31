@@ -62,7 +62,7 @@ class DagObserver(ObservationBuilder):
         di_graph = nx.DiGraph()  # (node, enter_orientation) ----cost, exit_dir---->
         general_graph = deepcopy(self.graph)
 
-        other_agents_position = [(*(a.initial_position if a.position is None else a.position), a.initial_direction if a.position is None else a.direction)
+        other_agents_position = [(*((a.initial_position if a.position is None else a.position)[::-1]), a.initial_direction if a.position is None else a.direction)
                                  for iter_handle, a in enumerate(self.env.agents) if iter_handle != handle]
         steps = 0
         steps_to_deadlock = 0
@@ -78,7 +78,7 @@ class DagObserver(ObservationBuilder):
         while not is_switch(self.env.rail, *start_pos, start_dir):
             if start_pos == target: target_flag = True; break
             if (*start_pos, start_dir) in other_agents_position: steps_to_deadlock -= 1
-            if (*start_pos, opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True; steps_to_deadlock += steps
+            if steps != 0 and (*start_pos, opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True; steps_to_deadlock += steps
             if is_dead_end(self.env.rail, *start_pos): start_dir = opposite_dir(start_dir)
             # iterate
             x, y, start_dir = get_next_oriented_pos(self.env.rail, *start_pos, start_dir)
@@ -94,7 +94,7 @@ class DagObserver(ObservationBuilder):
         elif deadlock_flag:  # deadlock road
             if steps_to_deadlock == 0 and switch_behind:  # the edge is full so remove it from the graph
                 self._remove_edge_and_transition(self.graph, node_behind[0:2], start_pos, node_behind[2])
-            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": steps_to_deadlock })])
+            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": steps_to_deadlock})])
             observation = di_graph
 
         elif steps > 1:  # straight road
@@ -194,33 +194,44 @@ class DagObserver(ObservationBuilder):
         return observation
 
     def _init_graph(self):
+
+        def check_transition_complete(x, y):
+            for directions, destinations, dead_ends in zip(self.graph.nodes[(x, y)]["trans"], self.graph.nodes[(x, y)]["trans_node"], self.graph.nodes[(x, y)]["dead_end"]):
+                for direction, destination, dead_end in zip(directions, destinations, dead_ends):
+                    if direction != 0 and destination == (0, 0) and dead_end == 0:
+                        return False
+            return True
+
         self.graph = nx.MultiDiGraph()
         # create an edge for each pair of connected switch
         visited = np.zeros((self.env.width, self.env.height), np.bool)
         targets = {a.handle: a.target[::-1] for a in self.env.agents}
         start_points = []
+        j = 0
+
         while not np.all(visited[self.env.rail.grid>0]):
-            for i, row in enumerate(self.env.rail.grid):
-                for j, _ in enumerate(row):
+            while len(start_points) == 0:
+                row = self.env.rail.grid[j]
+                i = 0
+                while len(row)>i:
                     if not visited[j, i] and (i,j) not in targets.values():
                         if self.env.rail.grid[j, i] != 0 and is_switch(self.env.rail, i, j):
                             # append cell oriented
                             [start_points.append((i, j, new_dir)) for new_dir, accessible in enumerate(get_allowed_directions(self.env.rail, i, j)) if accessible]; break
-                if len(start_points) != 0: break
+                    i+=1
+                if len(self.env.rail.grid)-1>j: j+=1
+                else: j=0
             while len(start_points) != 0:
                 steps = 0
                 targets_in_path = {}
                 start_x, start_y, start_dir = start_points.pop()
                 x, y, dir = get_next_pos(start_x, start_y, start_dir)
                 start_edge_exit = dir
-                transition_complete = True
-                if is_switch(self.env.rail, x, y):
-                    for directions, destinations in zip(self.graph.nodes[(start_x, start_y)]["trans"], self.graph.nodes[(start_x, start_y)]["trans_node"]):
-                        for direction, destination in zip(directions, destinations):
-                            if direction == 0 and destination != (0, 0) or direction != 0 and destination == (0, 0):
-                                transition_complete = False; break
 
-                if visited[y, x] and transition_complete: continue
+                if self.graph.has_node((start_x, start_y)):
+                    visited[start_y, start_x] = check_transition_complete(start_x, start_y)
+                    if visited[start_y, start_x]: break
+
                 while True:
                     steps += 1
                     if is_switch(self.env.rail, x, y):
@@ -235,6 +246,8 @@ class DagObserver(ObservationBuilder):
                         self.graph.add_edge((x, y), (start_x, start_y), **{'weight': steps,
                                                                    'exitpoint': {(start_x, start_y): start_edge_exit, (x, y): opposite_dir(dir)},
                                                                    'key': opposite_dir(dir)})
+                        visited[start_y, start_x] = check_transition_complete(start_x, start_y)
+
                         # and continue visit in other directions
                         [start_points.append((x, y, new_dir)) for new_dir, accessible in enumerate(get_allowed_directions(self.env.rail, x, y))
                             if accessible and new_dir != opposite_dir(dir)]
@@ -242,8 +255,6 @@ class DagObserver(ObservationBuilder):
                         break
                     elif is_dead_end(self.env.rail, x, y):
                         self.graph.add_node((start_x, start_y), **self.encode_node_attributes(start_x, start_y, start_dir, steps, targets_in_path, dead_end_detected=True))
-                    elif visited[y, x]:
-                        break
                     else:
                         for handle, target in targets.items():
                             if target == (x,y): targets_in_path[handle] = steps
@@ -472,11 +483,12 @@ class DagObserver(ObservationBuilder):
             new_graph.add_edge(*label, **attr)
 
     def _print_graph(self, graph, name="graph.png"):
-        nx.draw(graph, with_labels = True,
-            node_color = 'skyblue', node_size = 2200,
+        plt.close()
+        nx.draw(graph, with_labels = True, alpha=0.6,
+            node_color = 'skyblue', node_size = 1200,
             arrowstyle = '->', arrowsize = 20,
             font_size = 10, font_weight = "bold",
-            pos = nx.random_layout(graph, seed=13))
+            pos = nx.random_layout(graph, seed=4))
         plt.savefig(name)
 
     def _rank_agents(self):
