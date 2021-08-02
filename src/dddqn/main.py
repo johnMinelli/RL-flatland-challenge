@@ -27,6 +27,8 @@ if __name__ == "__main__":
     # ===================================================
     env = p_env.small_env
 
+    wandb_config = {**vars(env), **vars(t_env)}
+
     env.observer = DagObserver
     env.observer_params = {"conflict_radius": 2}
     env.observation_normalizer = normalize_observation
@@ -46,5 +48,5 @@ if __name__ == "__main__":
     if t_env.evaluating.active:
         eval(env, t_env)
     else:
-        train(env, t_env)
+        train(env, t_env, wandb_config)
 

@@ -3,7 +3,7 @@ import pickle
 from collections import deque
 import numpy as np
 
-from common.experience_replay import ReplayBuffer
+from src.common.experience_replay import ReplayBuffer
 
 
 class UniformReplayBuffer(ReplayBuffer):
