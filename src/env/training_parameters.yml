@@ -59,6 +59,6 @@ evaluating:
   model: ""
 
 logging:
-  wandb_project: "flatland-dddqn"
-  wandb_entity: "plutone"
-  wandb_tag: "d3qn"
+  wandb_project: "flatland"
+  wandb_entity: "llg"
+  wandb_tag: "dag"

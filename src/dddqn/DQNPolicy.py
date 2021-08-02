@@ -1,12 +1,15 @@
 from collections import deque
 import numpy as np
 import tensorflow as tf
+import os
 import keras
 
 # local imports
 from src.common.Policy import Policy
 from src.dddqn.model import DQN, DoubleDuelingDQN
 from src.dddqn.experience_replay import UniformReplayBuffer, PrioritizedReplay
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class DQNPolicy(Policy):
