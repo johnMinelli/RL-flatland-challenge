@@ -102,7 +102,7 @@ def train(env_params, train_params, wandb_config=None):
             for agent in range(env_params.n_agents):
 
                 # learning step only for agents at switch/pre-switch decision
-                if agent in agents_policy_guided:
+                if agent in agents_policy_guided and not agent_prev_obs[agent] is None:
                     learn_timer.start()
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], rewards[agent], obs[agent], done[agent])
                     learn_timer.end()

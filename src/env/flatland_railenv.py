@@ -141,7 +141,8 @@ class FlatlandRailEnv(RailEnv):
                 rewards[i_agent] = self.params.rewards.deadlock_penalty
             elif info["starvations"][i_agent]:
                 rewards[i_agent] = self.params.rewards.starvation_penalty
-            elif len(info["shortest_path"][i_agent]) < len(info["shortest_path_pre"][i_agent]):
+            elif i_agent in info["shortest_path"] and i_agent in info["shortest_path_pre"] and \
+                    len(info["shortest_path"][i_agent]) < len(info["shortest_path_pre"][i_agent]):
                 rewards[i_agent] = rewards[i_agent] * self.params.rewards.reduce_distance_penalty
         return rewards
 

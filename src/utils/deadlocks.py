@@ -172,7 +172,7 @@ class DeadlocksGraphController:
         self.env = env
         self.deadlocks = [False] * self.env.number_of_agents
         self.starvations = [False] * self.env.number_of_agents
-        self.negated_edges = dict()
+        self.deadlock_positions = set()  # for simplicity instead (node to node) this is (x, y, exit_dir)
 
     """
         Check for new deadlocks, updates info and returns it.
@@ -181,7 +181,6 @@ class DeadlocksGraphController:
         :return: the updated information dictionary
     """
     def check_deadlocks(self, info, obs):
-        #TODO set as deadlock status if arrived in the position chosen
         info["deadlocks"] = {}
         info["starvations"] = {}
         for handle in range(self.env.get_num_agents()):
@@ -191,24 +190,28 @@ class DeadlocksGraphController:
             if not graph is None:
                 for label, node in graph.nodes.items():
                     if "deadlock" in node:
-                        start_pos = (self.env.agents[handle].initial_position if self.env.agents[handle].position is None else
-                                     self.env.agents[handle].position)[::-1]
-                        start_dir = (self.env.agents[handle].initial_direction if self.env.agents[handle].direction is None else
-                                    self.env.agents[handle].direction)
+                        opposite_label = (*label[0:2], opposite_dir(label[2]))
+                        self.deadlock_positions.add(opposite_label)
                         if node['steps_to_deadlock'] == 0:
                             self.deadlocks[handle] = True
-                        if is_switch(self.env.rail, *get_next_pos(*start_pos, opposite_dir(start_dir))):
+                        if node["switch_behind"]:
                             info["deadlocks"][handle] = True
+                            if node['steps_to_deadlock'] == 0:
+                                self.deadlock_positions.remove(opposite_label)
                         break
                     elif "starvation" in node:
-                        self.starvations[handle] = True
-                        info["starvations"][handle] = True
+                        if self.env.agents[handle].initial_position == self.env.agents[handle].position:
+                            self.deadlocks[handle] = True
+                            # TODO also give feedback?
+                        else:
+                            self.starvations[handle] = True
+                            info["starvations"][handle] = True
 
         return info
 
     def reset(self, info):
         self.deadlocks = [False]*len(self.env.agents)
-        self.negated_edges = dict()
+        self.deadlock_positions = set()
 
         info["deadlocks"] = {}
         info["starvations"] = {}
