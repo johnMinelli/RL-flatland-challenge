@@ -3,6 +3,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import Dense
 from tensorflow.keras import Model
 
+from spektral.layers import GCNConv
 
 class DQN(Model):
 
@@ -64,6 +65,24 @@ class DoubleDuelingDQN(Model):
     def get_config(self):
         pass
 
+
+class GCN(Model):
+
+    def __init__(self, gcn_dims):
+
+        super().__init__()
+
+        self.graph_conv = GCNConv(gcn_dims, activation='relu')
+        self.dense = Dense(1, activation='relu')
+
+
+
+    def call(self, inputs, training=None, mask=None):
+
+        out = self.graph_conv(inputs)
+        out = self.dense(out)
+
+        return out
 
 if __name__ == '__main__':
     import numpy as np

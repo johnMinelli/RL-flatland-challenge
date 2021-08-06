@@ -35,3 +35,4 @@ dependencies:
     - wandb==0.9.5
     # To keep the env clean
     - pip-autoremove
+    - spektral
