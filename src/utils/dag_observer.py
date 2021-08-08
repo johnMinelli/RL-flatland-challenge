@@ -281,7 +281,7 @@ class DagObserver(ObservationBuilder):
                         visited[y, x] = True
                         x, y, dir = get_next_oriented_pos(self.env.rail, x, y, dir)
 
-        print(nx.to_dict_of_dicts(self.graph))
+        #print(nx.to_dict_of_dicts(self.graph))
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points, real_target):
         invalid_transitions = []
@@ -452,7 +452,7 @@ class DagObserver(ObservationBuilder):
 
     def _get_shorthest_path(self, graph, invalid_transitions, sources, target, allowed_target_dir):
         # shallow copy of the graph: don't modify node attributes
-        print("start")
+        #print("start")
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
         for current, orientation, next in invalid_transitions[::-1]:
@@ -473,7 +473,7 @@ class DagObserver(ObservationBuilder):
                     edge_set = deepcopy(data.items())
                     [reversed_graph.remove_edge(next, current, key=key) for key, edge_data in edge_set]
                     print("removed ", next, " ", current, " ", "^^^", edge_set)
-        print("end1")
+        #print("end1")
 
         # remove unfeasible directions
         feasible_destinations = reversed_graph.nodes[target]["trans_node"][allowed_target_dir]
@@ -482,7 +482,7 @@ class DagObserver(ObservationBuilder):
                 for edge_key in [a["exitpoint"][target] for i, a in attr.items()]:
                     try: reversed_graph.remove_edge(destination, target, key=edge_key)
                     except: pass
-        print("end2")
+        #print("end2")
 
         try:
             cost, path = nx.multi_source_dijkstra(reversed_graph, sources, target)

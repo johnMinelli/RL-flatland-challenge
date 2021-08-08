@@ -11,7 +11,7 @@ class DQN(Model):
     def get_config(self):
         pass
 
-    def __init__(self, action_size, dense1_dims=24, dense2_dims=12, loss='huber_loss', learning_rate=1e-2):
+    def __init__(self, action_size, dense1_dims=128, dense2_dims=64, loss='huber_loss', learning_rate=1e-2):
         super(DQN, self).__init__()
 
         self.layer1 = Dense(dense1_dims, activation='relu', kernel_initializer='he_uniform')
@@ -72,15 +72,15 @@ class GCN(Model):
 
         super().__init__()
 
-        self.graph_conv = GCNConv(gcn_dims, activation='relu')
-        self.dense = Dense(1, activation='relu')
+        self.graph_conv1 = GCNConv(gcn_dims, activation='relu')
+        self.graph_conv2 = GCNConv(1, activation='relu')
 
 
 
     def call(self, inputs, training=None, mask=None):
-
-        out = self.graph_conv(inputs)
-        out = self.dense(out)
+        X, A_hat = inputs
+        out = self.graph_conv1(inputs)
+        out = self.graph_conv2([out, A_hat])
 
         return out
 

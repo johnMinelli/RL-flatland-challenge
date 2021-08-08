@@ -38,6 +38,17 @@ dddqn:
   # update target network
   tau: 0.001
 
+a2c:
+  gamma: 0.99
+  # actor learning rate
+  alpha: 0.01
+  # critic learning rate
+  beta: 0.01
+  t_step: 0
+  update_rate: 4
+
+
+
 training:
   active: True
   # Checkpoint interval (how often to evaluate and save the model)
@@ -50,6 +61,7 @@ training:
   tensorboard_path: ""
   # Console logs
   print_stats: True
+  policy: "dqn"
 
 evaluating:
   active: False

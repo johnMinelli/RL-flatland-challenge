@@ -19,8 +19,8 @@ class FlatlandRailEnv(RailEnv):
         self.stats_controller = StatisticsController(self, env_params)
 
         # Calculate the state size given the depth of the tree observation and the number of features
-        n_features_per_node = 10#self.obs_builder.observation_dim
-        n_nodes = sum([np.power(4, i) for i in range(10 + 1)])
+        n_features_per_node = 2#self.obs_builder.observation_dim
+        n_nodes = sum([np.power(4, i) for i in range(6)])
         self.state_size = n_features_per_node * n_nodes
         self.stats = {}
         self.prev_observations = {}

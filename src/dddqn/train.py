@@ -5,7 +5,8 @@ from  flatland.envs.malfunction_generators import MalfunctionParameters
 
 from src.utils.env_utils import create_rail_env, copy_obs
 from src.utils.log_utils import Timer, TBLogger
-from src.dddqn.DQNPolicy import DQNPolicy
+from src.dddqn.DQNPolicy import DQNPolicy, DoubleDuelingDQN
+from src.dddqn.a2c import A2C
 
 try:
     import wandb
@@ -42,7 +43,13 @@ def train(env_params, train_params, wandb_config=None):
     # Official formula used for the evaluation processes [flatland.envs.schedule_generators.sparse_schedule_generator]
     max_steps = int(4 * 2 * (env_params.width + env_params.height + (env_params.n_agents / env_params.n_cities)))
 
+    #if train_params.training.policy == "dqn":
     policy = DQNPolicy(env.state_size, action_size, train_params)
+    #elif train_params.training.policy == "dddqn":
+    #    policy = DoubleDuelingDQN(env.state_size, action_size, train_params)
+    #elif train_params.training.policy == "a2c":
+    #    policy= A2C(env.state_size, action_size, train_params)
+
 
     # Timers
     training_timer = Timer()
