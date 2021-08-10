@@ -63,7 +63,9 @@ class DagObserver(ObservationBuilder):
         general_graph = deepcopy(self.graph)
 
         other_agents_position = [(*((a.initial_position if a.position is None else a.position)[::-1]), a.initial_direction if a.position is None else a.direction)
-                                 for iter_handle, a in enumerate(self.env.agents) if iter_handle != handle]
+                                 for iter_handle, a in enumerate(self.env.agents) if
+                                 iter_handle != handle and self.env.agents[iter_handle].status == RailAgentStatus.ACTIVE or
+                                 self.env.agents[iter_handle].status == RailAgentStatus.READY_TO_DEPART]
         steps = 0
         steps_to_deadlock = 0
         opposite_deviations = 0
@@ -122,6 +124,7 @@ class DagObserver(ObservationBuilder):
 
             ending_points = []  # those are cross cells not switch
             if self.env.dl_controller.starvations[handle]: # TODO i'm not so confident to uncomment that
+                # with that you suppose that if you end in starvation you can only develop a deadlock
                 ending_points = self.env.dl_controller.deadlock_access
             else:
                 for label, node_attr in general_graph.nodes.items():
@@ -177,8 +180,8 @@ class DagObserver(ObservationBuilder):
                     self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
 
                 # add attributes to nodes based on conflicts
-                agent_ranking_pos = self.prioritized_agents[handle]
-                for matching_handle in range(agent_ranking_pos):
+                agent_ranking_pos = self.prioritized_agents.index(handle)
+                for matching_handle in self.prioritized_agents[:agent_ranking_pos]:
                     # a conflict node is a common node between the obs DiGraph and the other agent DiGraph (compare only x, y)
                     if self.env.agents[matching_handle].status == RailAgentStatus.ACTIVE and matching_handle in self.prev_observations:
                         matching_graph = self.prev_observations[matching_handle]
@@ -281,7 +284,7 @@ class DagObserver(ObservationBuilder):
                         visited[y, x] = True
                         x, y, dir = get_next_oriented_pos(self.env.rail, x, y, dir)
 
-        #print(nx.to_dict_of_dicts(self.graph))
+        print(nx.to_dict_of_dicts(self.graph))
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points, real_target):
         invalid_transitions = []
@@ -452,7 +455,7 @@ class DagObserver(ObservationBuilder):
 
     def _get_shorthest_path(self, graph, invalid_transitions, sources, target, allowed_target_dir):
         # shallow copy of the graph: don't modify node attributes
-        #print("start")
+        print("start _get_shorthest_path")
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
         for current, orientation, next in invalid_transitions[::-1]:
@@ -461,20 +464,20 @@ class DagObserver(ObservationBuilder):
             #                 current in general_graph[label]] if len(prev)>0][0][0]
             # previous = {edge_data["weight"]:label for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)}
             # prev = previous[sorted(previous)[0]]
-            previous = [label for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)]
+            previous = [label[0:2] for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)]
             cloned_node = (*current, orientation)
             reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
             for end, data in reversed_graph[current].items():
-                if not end in previous:
+                if not end[0:2] in previous:
                     [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
-            for end, data in general_graph[current].items():
-                if end == next:
+            for end, data in deepcopy(general_graph[current].items()):
+                if end[0:2] == next[0:2]:
                     [reversed_graph.add_edge(next, cloned_node, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
                     edge_set = deepcopy(data.items())
-                    [reversed_graph.remove_edge(next, current, key=key) for key, edge_data in edge_set]
-                    print("removed ", next, " ", current, " ", "^^^", edge_set)
-        #print("end1")
-
+                    for key, edge_data in edge_set:
+                        reversed_graph.remove_edge(next, current, key=key)
+                        [reversed_graph.remove_edge((*next, clone), current, key=key)
+                                for clone in range(4) if reversed_graph.get_edge_data((*next, clone), current, key)]
         # remove unfeasible directions
         feasible_destinations = reversed_graph.nodes[target]["trans_node"][allowed_target_dir]
         for destination, attr in general_graph[target].items():
@@ -482,7 +485,7 @@ class DagObserver(ObservationBuilder):
                 for edge_key in [a["exitpoint"][target] for i, a in attr.items()]:
                     try: reversed_graph.remove_edge(destination, target, key=edge_key)
                     except: pass
-        #print("end2")
+        print("end _get_shorthest_path")
 
         try:
             cost, path = nx.multi_source_dijkstra(reversed_graph, sources, target)
@@ -508,10 +511,10 @@ class DagObserver(ObservationBuilder):
             node_color = 'skyblue', node_size = 1200,
             arrowstyle = '->', arrowsize = 20,
             font_size = 10, font_weight = "bold",
-            pos = nx.random_layout(graph, seed=4))
+            pos = nx.random_layout(graph))
         plt.savefig(name)
 
-    def _rank_agents(self):
+    def _rank_agents(self):  # less is better
         list = dict()
         for handle, agent in enumerate(self.env.agents):
             if handle in self.prev_observations.keys():
