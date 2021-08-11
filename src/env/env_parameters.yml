@@ -1,13 +1,13 @@
 # Environment cofiguration
 small_env:
   # Random seed used to generate rails
-  seed: 1
+  seed: 2
   # Number of trains to spawn
   n_agents: 3
   # Environment width
-  width: 25
+  width: 40
   # Environment height
-  height: 25
+  height: 40
   # Maximum number of cities where agents can start or end
   n_cities: 2
   # Type of city distribution
@@ -33,13 +33,14 @@ small_env:
     goal_reward: 10
     reduce_distance_penalty: 0.5
   render: True
+  max_state_size: 24
 
 
 medium_env:
-  seed: 1
+  seed: 2
   n_agents: 7
-  width: 48
-  height: 27
+  width: 60
+  height: 60
   n_cities: 5
   grid: False
   max_rails_between_cities: 2
@@ -53,13 +54,14 @@ medium_env:
   rewards:
     stop_penalty: 2.0
   render: False
+  max_state_size: 48
 
 
 big_env:
-  seed: 1
+  seed: 2
   n_agents: 10
-  width: 64
-  height: 36
+  width: 80
+  height: 80
   n_cities: 9
   grid: False
   max_rails_between_cities: 5
@@ -73,3 +75,6 @@ big_env:
   rewards:
     stop_penalty: 2.0
   render: False
+  max_state_size: 72
+
+env: "small" # values are [small, medium, big]
