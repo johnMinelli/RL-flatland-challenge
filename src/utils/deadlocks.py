@@ -221,4 +221,4 @@ class DeadlocksGraphController:
         return info
 
     def check_all_blocked(self):
-        return np.all(self.deadlocks) and np.all(self.starvations)
+        return np.all(self.deadlocks) or np.all(self.starvations)

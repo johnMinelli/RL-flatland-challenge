@@ -25,7 +25,10 @@ from src.utils.rail_utils import *
 # secondary choice is dead_end
 # remember that the deadlock label will be applied only when two agents TOUCH into an edge
 # remember that an edge will be removed from graph only when an agent is in deadlock with 0 step and prev step is switch
-
+#TODO ma se un agent è in malfunction status è corretto continuare a chiamare la get su di lui?
+# avrebbe più senso chiamarla solo quando ha finito di malfunzionare. Sappiamo quando questo accade?
+#TODO se ci sono due agent in fila che procedono verso il target anche se magari sono allo switch pre-target
+# quello dietro cambierà direzione perchè il nodo verrà marcato come conflict
 
 class DagObserver(ObservationBuilder):
 
@@ -86,8 +89,8 @@ class DagObserver(ObservationBuilder):
         while not is_switch(self.env.rail, *start_pos, start_dir):
             if start_pos == target: target_flag = True; break
             if (*start_pos, start_dir) in other_agents_position: steps_to_deadlock -= 1
-            if steps_to_deadlock>=0 and is_switch(self.env.rail, *start_pos, opposite_dir(start_dir)): opposite_deviations += 1
-            if steps != 0 and (*start_pos, opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True; steps_to_deadlock += steps
+            if (not deadlock_flag) and is_switch(self.env.rail, *start_pos, opposite_dir(start_dir)): opposite_deviations += 1
+            if (not deadlock_flag) and steps != 0 and (*start_pos, opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True; steps_to_deadlock += steps-1
             if is_dead_end(self.env.rail, *start_pos): start_dir = opposite_dir(start_dir)
             # iterate
             x, y, start_dir = get_next_oriented_pos(self.env.rail, *start_pos, start_dir)
@@ -170,13 +173,12 @@ class DagObserver(ObservationBuilder):
                                     t = [o[iter_dir] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
                                     [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, iter_dir) for destination_node in t if destination_node != (0,0)]
                             else:
-                                while True:
+                                while not is_switch(self.env.rail, pos_x, pos_y, dir):
                                     if is_dead_end(self.env.rail, pos_x, pos_y): dir = opposite_dir(dir)
-                                    if is_switch(self.env.rail, pos_x, pos_y, dir): break
                                     pos_x, pos_y, dir = get_next_oriented_pos(self.env.rail, pos_x, pos_y, dir)
                                     steps += 1
                                 t = [o[opposite_dir(dir)] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
-                                [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, opposite_dir(dir)) for destination_node in t if destination_node != (0,0)]
+                                [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, opposite_dir(dir)) for destination_node in set(t) if destination_node != (0,0)]
                     self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
 
                 # add attributes to nodes based on conflicts
@@ -232,7 +234,7 @@ class DagObserver(ObservationBuilder):
         start_points = []
         j = 0
 
-        while not np.all(visited[self.env.rail.grid>0]):
+        while (not np.all(visited[self.env.rail.grid>0])) or len(start_points) != 0:
             while len(start_points) == 0:
                 row = self.env.rail.grid[j]
                 i = 0
@@ -247,7 +249,7 @@ class DagObserver(ObservationBuilder):
             while len(start_points) != 0:
                 steps = 0
                 targets_in_path = {}
-                start_x, start_y, start_dir = start_points.pop()
+                start_x, start_y, start_dir = start_points.pop(0)
                 x, y, dir = get_next_pos(start_x, start_y, start_dir)
                 start_edge_exit = dir
 
@@ -437,11 +439,18 @@ class DagObserver(ObservationBuilder):
         general_graph.add_edge(current_node, next_node, **{'weight': cost,
                                                               'exitpoint': {current_node: start_node_exit_dir, next_node: opposite_dir(next_orientation)},
                                                               'key': start_node_exit_dir})
-        general_graph.nodes[current_node]["trans_node"][current_orientation][start_node_exit_dir] = next_node
+        new_attr = general_graph.nodes[current_node]
+        prev_node = new_attr["trans_node"][current_orientation][start_node_exit_dir]
+        for orientiations in new_attr["trans_node"]:
+            if orientiations[start_node_exit_dir] == prev_node:
+                orientiations[start_node_exit_dir] = next_node
+        general_graph.update(nodes=[(current_node, new_attr)])
         if target_found: return cost+target_cost, target, dead_end
         return cost, (*next_node, next_orientation), dead_end
 
     def _remove_edge_and_transition(self, general_graph, node1, node2, edge_key):
+        if(node1 == (19, 15) and node2 == (16, 14)):
+            print("")
         general_graph.remove_edge(node1, node2, key=edge_key)
         transitions_node = general_graph.nodes[node1]["trans_node"]
         transitions = general_graph.nodes[node1]["trans"]
@@ -475,7 +484,9 @@ class DagObserver(ObservationBuilder):
                     [reversed_graph.add_edge(next, cloned_node, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
                     edge_set = deepcopy(data.items())
                     for key, edge_data in edge_set:
-                        reversed_graph.remove_edge(next, current, key=key)
+                        try:
+                            reversed_graph.remove_edge(next, current, key=key)
+                        except: pass
                         [reversed_graph.remove_edge((*next, clone), current, key=key)
                                 for clone in range(4) if reversed_graph.get_edge_data((*next, clone), current, key)]
         # remove unfeasible directions

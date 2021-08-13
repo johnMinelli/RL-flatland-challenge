@@ -129,7 +129,7 @@ def train(env_params, train_params, wandb_config=None):
             if env_params.render:
                 env.show_render()
 
-            if done['__all__'] or env.dl_controller.check_all_blocked():
+            if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] for a in env.agents]):
                 break
 
         # Epsilon decay
