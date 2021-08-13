@@ -30,7 +30,7 @@ class DQN(Model):
 
 class DoubleDuelingDQN(Model):
 
-    def __init__(self, action_size, dense1_dims=24, dense2_dims=12, loss='huber_loss', learning_rate=1e-2):
+    def __init__(self, action_size, dense1_dims=128, dense2_dims=64, loss='huber_loss', learning_rate=1e-2):
         super(DoubleDuelingDQN, self).__init__()
 
         self.layer1 = Dense(dense1_dims, activation='relu', kernel_initializer='he_uniform')

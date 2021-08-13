@@ -49,7 +49,8 @@ class StatisticsController:
         Update some statistics and print at the end of the episode
         """
         for a in range(self.num_agents):
-            if a in action_dict:
+            # second check is for illegal action which shouldn't be recorded
+            if a in action_dict and 0 <= action_dict[a] <= self.action_space - 1:
                 self.action_count[action_dict[a]] += 1
 
         self.step += 1
