@@ -39,6 +39,7 @@ class DagObserver(ObservationBuilder):
         self.graph = None
         self.observations = dict()
         self.prev_observations = dict()
+        self.safety_flag = True
 
     def set_env(self, env: FlatlandRailEnv):
         super().set_env(env)
@@ -62,6 +63,8 @@ class DagObserver(ObservationBuilder):
         return self.observations
 
     def get(self, handle=0):
+        if self.env.dl_controller.deadlocks[handle]: return None
+
         di_graph = nx.DiGraph()  # (node, enter_orientation) ----cost, exit_dir---->
         general_graph = deepcopy(self.graph)
 
@@ -69,6 +72,8 @@ class DagObserver(ObservationBuilder):
                                  for iter_handle, a in enumerate(self.env.agents) if
                                  iter_handle != handle and self.env.agents[iter_handle].status == RailAgentStatus.ACTIVE or
                                  self.env.agents[iter_handle].status == RailAgentStatus.READY_TO_DEPART]
+        dl_agents_position = [(a.initial_position if a.position is None else a.position)[::-1] for a in np.array(self.env.agents)[self.env.dl_controller.deadlocks]]
+
         steps = 0
         steps_to_deadlock = 0
         opposite_deviations = 0
@@ -90,7 +95,7 @@ class DagObserver(ObservationBuilder):
             if start_pos == target: target_flag = True; break
             if (*start_pos, start_dir) in other_agents_position: steps_to_deadlock -= 1
             if (not deadlock_flag) and is_switch(self.env.rail, *start_pos, opposite_dir(start_dir)): opposite_deviations += 1
-            if (not deadlock_flag) and steps != 0 and (*start_pos, opposite_dir(start_dir)) in other_agents_position: deadlock_flag = True; steps_to_deadlock += steps-1
+            if (not deadlock_flag) and steps != 0 and ((*start_pos, opposite_dir(start_dir)) in other_agents_position or start_pos in dl_agents_position): deadlock_flag = True; steps_to_deadlock += steps-1
             if is_dead_end(self.env.rail, *start_pos): start_dir = opposite_dir(start_dir)
             # iterate
             x, y, start_dir = get_next_oriented_pos(self.env.rail, *start_pos, start_dir)
@@ -128,7 +133,7 @@ class DagObserver(ObservationBuilder):
             ending_points = []  # those are cross cells not switch
             if self.env.dl_controller.starvations[handle]: # TODO i'm not so confident to uncomment that
                 # with that you suppose that if you end in starvation you can only develop a deadlock
-                ending_points = self.env.dl_controller.deadlock_access
+                ending_points = self.env.dl_controller.deadlock_positions
             else:
                 for label, node_attr in general_graph.nodes.items():
                     if handle in node_attr['targets']:
@@ -162,23 +167,22 @@ class DagObserver(ObservationBuilder):
                 di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": shortest_info[0], "shortest_path": shortest_info[1]})])
 
                 # -explore path target-to-agent other agents
-                if np.any(self.env.dl_controller.deadlocks):
-                    for a in np.array(self.env.agents)[[not d for d in self.env.dl_controller.deadlocks]]:
-                        if a.status == RailAgentStatus.ACTIVE or a.status == RailAgentStatus.READY_TO_DEPART:
-                            # remove busy edges (only opposite direction) from general_graph
-                            pos_y, pos_x = a.initial_position if a.position is None else a.position
-                            dir = a.initial_direction if a.position is None else a.direction
-                            if is_switch(self.env.rail, pos_x, pos_y, dir):
-                                for iter_dir in range(4):
-                                    t = [o[iter_dir] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
-                                    [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, iter_dir) for destination_node in t if destination_node != (0,0)]
-                            else:
-                                while not is_switch(self.env.rail, pos_x, pos_y, dir):
-                                    if is_dead_end(self.env.rail, pos_x, pos_y): dir = opposite_dir(dir)
-                                    pos_x, pos_y, dir = get_next_oriented_pos(self.env.rail, pos_x, pos_y, dir)
-                                    steps += 1
-                                t = [o[opposite_dir(dir)] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
-                                [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, opposite_dir(dir)) for destination_node in set(t) if destination_node != (0,0)]
+                non_blocked_agents = [not d if h != handle else False for h, d in enumerate(self.env.dl_controller.deadlocks)]
+                if np.any(non_blocked_agents):
+                    for a in np.array(self.env.agents)[non_blocked_agents]:
+                        # remove busy edges (only opposite direction) from general_graph
+                        pos_y, pos_x = a.initial_position if a.position is None else a.position
+                        dir = a.initial_direction if a.position is None else a.direction
+                        if is_switch(self.env.rail, pos_x, pos_y, dir):
+                            for iter_dir in range(4):
+                                t = [o[iter_dir] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
+                                [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, iter_dir) for destination_node in  set(t) if destination_node != (0,0)]
+                        else:
+                            while not is_switch(self.env.rail, pos_x, pos_y, dir):
+                                if is_dead_end(self.env.rail, pos_x, pos_y): dir = opposite_dir(dir)
+                                pos_x, pos_y, dir = get_next_oriented_pos(self.env.rail, pos_x, pos_y, dir)
+                            t = [o[opposite_dir(dir)] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
+                            [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, opposite_dir(dir)) for destination_node in set(t) if destination_node != (0,0)]
                     self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
 
                 # add attributes to nodes based on conflicts
@@ -449,9 +453,12 @@ class DagObserver(ObservationBuilder):
         return cost, (*next_node, next_orientation), dead_end
 
     def _remove_edge_and_transition(self, general_graph, node1, node2, edge_key):
-        if(node1 == (19, 15) and node2 == (16, 14)):
-            print("")
-        general_graph.remove_edge(node1, node2, key=edge_key)
+        if not self.safety_flag:
+            general_graph.remove_edge(node1, node2, key=edge_key)
+        else:
+            try: general_graph.remove_edge(node1, node2, key=edge_key)
+            except: pass
+        nodes_to_propagate_action = []
         transitions_node = general_graph.nodes[node1]["trans_node"]
         transitions = general_graph.nodes[node1]["trans"]
         for row, destinations in enumerate(transitions_node):
@@ -459,20 +466,18 @@ class DagObserver(ObservationBuilder):
                 if destination_node == node2:
                     transitions_node[row][col] = (0,0)
                     transitions[row][col] = 0
-        general_graph.nodes[node1]["trans_node"] = transitions_node
-        general_graph.nodes[node1]["trans"] = transitions
+                    if np.array_equal(transitions[row], [0,0,0,0]):
+                        nodes_affected = [(label, key) for label, edges in general_graph.reverse()[node1].items() for key, edge_data in
+                            edges.items() if edge_data["exitpoint"][node1] == opposite_dir(row)]
+                        nodes_to_propagate_action += nodes_affected
+        for n, k in nodes_to_propagate_action:
+            self._remove_edge_and_transition(general_graph, n, node1, k)
 
     def _get_shorthest_path(self, graph, invalid_transitions, sources, target, allowed_target_dir):
         # shallow copy of the graph: don't modify node attributes
-        print("start _get_shorthest_path")
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
         for current, orientation, next in invalid_transitions[::-1]:
-            # prev = [prev for prev in [[label for key, edge_data in general_graph[label][current].items() if
-            #             edge_data["exitpoint"][current] == opposite_dir(orientation)] for label, a in general_graph.nodes.items() if
-            #                 current in general_graph[label]] if len(prev)>0][0][0]
-            # previous = {edge_data["weight"]:label for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)}
-            # prev = previous[sorted(previous)[0]]
             previous = [label[0:2] for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data["exitpoint"][current] == opposite_dir(orientation)]
             cloned_node = (*current, orientation)
             reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
@@ -496,7 +501,6 @@ class DagObserver(ObservationBuilder):
                 for edge_key in [a["exitpoint"][target] for i, a in attr.items()]:
                     try: reversed_graph.remove_edge(destination, target, key=edge_key)
                     except: pass
-        print("end _get_shorthest_path")
 
         try:
             cost, path = nx.multi_source_dijkstra(reversed_graph, sources, target)

@@ -203,9 +203,9 @@ class DeadlocksGraphController:
                         if self.env.agents[handle].initial_position == self.env.agents[handle].position:
                             self.deadlocks[handle] = True
                             # TODO also give feedback?
-                        else:
-                            self.starvations[handle] = True
-                            info["starvations"][handle] = True
+                        # else:
+                        self.starvations[handle] = True
+                        info["starvations"][handle] = True
 
         return info
 
