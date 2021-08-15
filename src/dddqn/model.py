@@ -68,19 +68,23 @@ class DoubleDuelingDQN(Model):
 
 class GCN(Model):
 
-    def __init__(self, gcn_dims):
+    def __init__(self, gcn_dims, n_convolutions=3):
 
         super().__init__()
 
-        self.graph_conv1 = GCNConv(gcn_dims, activation='relu')
-        self.graph_conv2 = GCNConv(1, activation='relu')
+        self.graph_convolutions = []
+        for n in range(n_convolutions):
+            gcn = GCNConv(gcn_dims, activation='relu')
+            self.graph_convolutions.append(gcn)
+        self.graph_convolutions.append(GCNConv(1, activation='relu'))
 
 
 
     def call(self, inputs, training=None, mask=None):
         X, A_hat = inputs
-        out = self.graph_conv1(inputs)
-        out = self.graph_conv2([out, A_hat])
+        out = self.graph_convolutions[0](inputs)
+        for graph_conv in self.graph_convolutions[1:]:
+            out = graph_conv([out, A_hat])
 
         return out
 
