@@ -161,7 +161,7 @@ class DagObserver(ObservationBuilder):
                 if shortest_info is None:
                     # no path available for target and deadlock place: send him to starve at spawn point
                     di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True, "new_destination": "spawn"})])
-                    access = get_allowed_directions(*self.env.agents[handle].initial_position[::-1])
+                    access = get_allowed_directions(self.env.rail, *self.env.agents[handle].initial_position[::-1])
                     shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, [(*self.env.agents[handle].initial_position[::-1], opposite_dir(d)) for d in access if d == True], target)
                 if shortest_info is None: shortest_info = (0,[])
                 di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": shortest_info[0], "shortest_path": shortest_info[1]})])
