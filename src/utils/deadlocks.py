@@ -191,16 +191,20 @@ class DeadlocksGraphController:
                 for label, node in graph.nodes.items():
                     if "deadlock" in node:
                         opposite_label = (*label[0:2], opposite_dir(label[2]))
-                        self.deadlock_positions.add(opposite_label)
-                        if node['steps_to_deadlock'] == 0:
-                            self.deadlocks[handle] = True
                         if node["switch_behind"]:
                             info["deadlocks"][handle] = True
                             if node['steps_to_deadlock'] == 0:
-                                self.deadlock_positions.remove(opposite_label)
+                                try: self.deadlock_positions.add(opposite_label)
+                                except: pass
+                                self.deadlocks[handle] = True
+                        elif node['steps_to_deadlock'] == 0:
+                            self.deadlock_positions.add(opposite_label)
+                            self.deadlocks[handle] = True
                         break
                     elif "starvation" in node:
                         if self.env.agents[handle].initial_position == self.env.agents[handle].position:
+                            opposite_label = (*label[0:2], opposite_dir(label[2]))
+                            self.deadlock_positions.add(opposite_label)
                             self.deadlocks[handle] = True
                             # TODO also give feedback?
                         # else:

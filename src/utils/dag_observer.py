@@ -111,7 +111,14 @@ class DagObserver(ObservationBuilder):
         elif deadlock_flag and opposite_deviations <= 0:  # deadlock road
             if steps_to_deadlock == 0 and switch_behind:  # the edge is full so remove it from the graph
                 self._remove_edge_and_transition(self.graph, node_behind[0:2], start_pos, node_behind[2])
-            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": steps_to_deadlock, "switch_behind": switch_behind })])
+            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": steps_to_deadlock, "switch_behind": switch_behind})])
+            return di_graph
+
+        elif np.array_equal(general_graph.nodes[start_pos]["trans"][start_dir], [0,0,0,0]): # deadlock switch
+            for label, edges in general_graph[start_pos].items():  # remove all directions from the graph
+                for key, edge_data in edges.items():
+                    self._remove_edge_and_transition(self.graph, start_pos, label, key)
+            di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": 0, "switch_behind": True})])
             return di_graph
 
         elif steps > 1:  # straight road
@@ -131,9 +138,18 @@ class DagObserver(ObservationBuilder):
             # get switches near agent's target in DiGraph for shortest_path computation
 
             ending_points = []  # those are cross cells not switch
-            if self.env.dl_controller.starvations[handle]: # TODO i'm not so confident to uncomment that
+            if self.env.dl_controller.starvations[handle] != False:
                 # with that you suppose that if you end in starvation you can only develop a deadlock
-                ending_points = self.env.dl_controller.deadlock_positions
+                dying_points = self.env.dl_controller.deadlock_positions
+                for pos_x, pos_y, out_dir in dying_points:
+                    label = (pos_x, pos_y)
+                    ending_points.append(label)
+                    for orientation in range(4):
+                        if self.graph.nodes[label]["trans"][orientation][out_dir] == 1 and is_switch(self.env.rail, *label, orientation):
+                            node = (*label, orientation)
+                            di_graph.add_node(node)
+                            fake_target = get_next_pos(*label, out_dir, 1)[0:2]
+                            di_graph.add_edge(node, fake_target, **{'weight': 1, 'out_dir': out_dir})
             else:
                 for label, node_attr in general_graph.nodes.items():
                     if handle in node_attr['targets']:
@@ -153,16 +169,12 @@ class DagObserver(ObservationBuilder):
                 if start_pos in ending_points: ending_points.remove(start_pos)
                 # -explore target-to-agent without other agents
                 shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
-                if shortest_info is None and ending_points != self.env.dl_controller.deadlock_positions and len(self.env.dl_controller.deadlock_positions) != 0:
-                    # no path available for target: send him to a deadlock edge
-                    ending_points = self.env.dl_controller.deadlock_positions
-                    di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True, "new_destination": "deadlock"})])
-                    shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
                 if shortest_info is None:
-                    # no path available for target and deadlock place: send him to starve at spawn point
-                    di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True, "new_destination": "spawn"})])
-                    access = get_allowed_directions(*self.env.agents[handle].initial_position[::-1])
-                    shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, [(*self.env.agents[handle].initial_position[::-1], opposite_dir(d)) for d in access if d == True], target)
+                    di_graph.update(nodes=[((*start_pos, start_dir), {"starvation": True})])
+                    # no path available for target: send him to a deadlock edge
+                    if ending_points != [(x,y) for x,y,_ in self.env.dl_controller.deadlock_positions] and len(self.env.dl_controller.deadlock_positions) != 0:
+                        ending_points = self.env.dl_controller.deadlock_positions
+                        shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
                 if shortest_info is None: shortest_info = (0,[])
                 di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": shortest_info[0], "shortest_path": shortest_info[1]})])
 
@@ -201,23 +213,6 @@ class DagObserver(ObservationBuilder):
                             di_graph.update(nodes=[(conflict_node, {"conflict": True, **self.encode_conflict_node_attributes(matching_handle, (start_label, start_node), matched_conflict_node)})])
 
             observation = di_graph
-
-        # # We track what cells where considered while building the observation and make them accessible for rendering
-        # visited = set()
-        #
-        # for _idx in range(10):
-        #     # Check if any of the other prediction overlap with agents own predictions
-        #     x_coord = self.predictions[handle][_idx][1]
-        #     y_coord = self.predictions[handle][_idx][2]
-        #
-        #     # We add every observed cell to the observation rendering
-        #     visited.add((x_coord, y_coord))
-        #     if self.predicted_pos[_idx][handle] in np.delete(self.predicted_pos[_idx], handle, 0):
-        #         # We detect if another agent is predicting to pass through the same cell at the same predicted time
-        #         observation[handle] = 1
-        #
-        # # This variable will be accessed by the renderer to visualize the observations
-        # self.env.dev_obs_dict[handle] = visited
 
         self.prev_observations[handle] = observation
         return observation
@@ -293,7 +288,7 @@ class DagObserver(ObservationBuilder):
         print(nx.to_dict_of_dicts(self.graph))
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points, real_target):
-        invalid_transitions = []
+        quit = None; invalid_transitions = []
         shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, start_pos, start_dir)
         if path is None: return None
         while not self._is_path_in_graph(directed_graph, path, (*start_pos, start_dir), real_target):
@@ -344,6 +339,8 @@ class DagObserver(ObservationBuilder):
                     # the edge for this direction is invalid
                     if (current_node, current_orientation, next_node) not in invalid_transitions:
                         invalid_transitions.append((current_node, current_orientation, next_node))
+                    elif (current_node, current_orientation, next_node) == quit: quit = True; break
+                    else: quit = (current_node, current_orientation, next_node)
                     # this case you must have at least a transition possible from your orientation
                     unreachable_node = next_node
                     exploration_node = None
@@ -393,6 +390,7 @@ class DagObserver(ObservationBuilder):
                 i = 0
             shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, start_pos, start_dir)
             if path is None: return None
+            if quit == True: break
         return shortest_cost, path
 
     def _is_path_in_graph(self, di_graph, path, start, target):
