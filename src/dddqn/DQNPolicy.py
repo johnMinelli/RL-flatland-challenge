@@ -149,6 +149,9 @@ class DoubleDuelingDQNPolicy(DQNPolicy):
         self.model = DoubleDuelingDQN(self.action_size)
         self.target_model = DoubleDuelingDQN(self.action_size)
 
+        self.model.build(input_shape=(None, self.state_size))
+        self.target_model.build(input_shape=(None, self.state_size))
+
     def act(self, state):
 
         n = np.random.random()
@@ -157,6 +160,6 @@ class DoubleDuelingDQNPolicy(DQNPolicy):
             return np.random.randint(0, self.action_size)
         else:
             # we only use the advantage array for action pick
-            actions = self.model.advantage(np.expand_dims(state, axis=0))
+            actions = self.model.advantage(state.reshape(1, -1))
             return np.argmax(actions[0])
 
