@@ -93,14 +93,16 @@ class DagObserver(ObservationBuilder):
 
         while not is_switch(self.env.rail, *start_pos, start_dir):
             if start_pos == target: target_flag = True; break
-            if (*start_pos, start_dir) in other_agents_position: steps_to_deadlock -= 1
-            if (not deadlock_flag) and is_switch(self.env.rail, *start_pos, opposite_dir(start_dir)): opposite_deviations += 1
+            if (not deadlock_flag) and (*start_pos, start_dir) in other_agents_position and (not start_pos in dl_agents_position): steps_to_deadlock -= 1
+            if (not deadlock_flag) and steps != 0 and is_switch(self.env.rail, *start_pos, opposite_dir(start_dir)): opposite_deviations += 1
             if (not deadlock_flag) and steps != 0 and ((*start_pos, opposite_dir(start_dir)) in other_agents_position or start_pos in dl_agents_position): deadlock_flag = True; steps_to_deadlock += steps-1
             if is_dead_end(self.env.rail, *start_pos): start_dir = opposite_dir(start_dir)
             # iterate
             x, y, start_dir = get_next_oriented_pos(self.env.rail, *start_pos, start_dir)
             start_pos = (x, y)
             steps += 1
+        if (not deadlock_flag) and (start_pos in dl_agents_position): deadlock_flag = True; steps_to_deadlock += steps - 1
+
         di_graph.add_node((*start_pos, start_dir), **{"start": True, **self.encode_start_node_attributes(handle, steps)})
 
         if target_flag:  # target road
@@ -114,7 +116,10 @@ class DagObserver(ObservationBuilder):
             di_graph.update(nodes=[((*start_pos, start_dir), {"deadlock": True, "steps_to_deadlock": steps_to_deadlock, "switch_behind": switch_behind})])
             return di_graph
 
-        elif np.array_equal(general_graph.nodes[start_pos]["trans"][start_dir], [0,0,0,0]): # deadlock switch
+        elif np.array_equal(general_graph.nodes[start_pos]["trans"][start_dir], [0,0,0,0]) or \
+            all([any([(n[0],n[1], opp_d) in other_agents_position for opp_d in range(4) if opp_d != n[2]])  for n in
+                 [get_next_pos(*start_pos, d) for d,v in enumerate(general_graph.nodes[start_pos]["trans"][start_dir]) if v == 1]]):
+            # switch already dead(no destinations) or all possible destinations are (all busy) in other_agents_positions
             for label, edges in general_graph[start_pos].items():  # remove all directions from the graph
                 for key, edge_data in edges.items():
                     self._remove_edge_and_transition(self.graph, start_pos, label, key)
@@ -313,7 +318,7 @@ class DagObserver(ObservationBuilder):
                     try:
                         current_node = destination[0:2]
                         current_orientation = destination[2]
-                        i = path.index(current_node)+1
+                        i = i+path[i:].index(current_node)+1
                     except:
                         # end of path reached but no allowed direction for target found
                         _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, destination[0:2], destination[2])
