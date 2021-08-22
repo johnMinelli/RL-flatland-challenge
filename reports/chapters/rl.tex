@@ -1,5 +1,10 @@
+\textbf{Reinforcement learning} aims at training agents that operate in an environment by assigning rewards to their actions. Agents decide which action to take based on a \textbf{policy} $\pi(a_t, s_t)$, with $s_t$ being the observation of the environment at time step t. \\
+Maximizing the sum of rewards is the method whereby the agent improves the policy and learns.
+
 \section{DQN}
-We started by implementing a slight variation of DQN as described in \cite{dqn}, without the use of CNN, but by simply using fully connected layers with \textbf{ReLU}. \\
+\cite{dqn} detailed a network model to approximate the Q-function $Q^{\pi}(s,a)$, which measures, for each state-action pair, the discounted sum of rewards, following from the policy $\pi$. The optimal Q-function, that is the maximum reward which can be obtained by performing a certain action a in state s, obeys the \textbf{Bellman optimality equation} $$Q^*(s,a) = E[r + \gamma max_{a'}Q^*(s', a')]$$
+It follows that the maximum return is obtained by the immediate reward and the discounted return that the agent gets by following the policy; in practice, however, neural networks are needed in order to avoid computing a huge Q-table, and they are trained by minimizing the \textbf{temporal difference} loss.  
+We started by implementing a slight variation of DQN as described in \cite{dqn}, without the use of CNN, but by simply using fully connected layers with \textbf{ReLU}, since we felt that this specific environment wouldn't benefit from classic image convolution, though we used graph convolutions later. \\
 \begin{neuralnetwork} [nodespacing=10mm, layerspacing=25mm,
 			maintitleheight=2.5em, layertitleheight=2.5em,
 			height=5, toprow=false, nodesize=17pt, style={},

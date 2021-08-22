@@ -8,24 +8,24 @@ from src.utils.log_utils import Timer, TBLogger
 from src.dddqn.DQNPolicy import DQNPolicy, DoubleDuelingDQNPolicy
 from src.dddqn.a2c import A2C
 
-#try:
-#    import wandb
+try:
+    import wandb
 
-#    use_wandb = True
-#except ImportError as e:
-#    print("wandb is not installed, TensorBoard on specified directory will be used!")
-#    use_wandb = False
+    use_wandb = True
+except ImportError as e:
+    print("wandb is not installed, TensorBoard on specified directory will be used!")
+    use_wandb = False
 
 
 def train(env_params, train_params, wandb_config=None):
     # Initialize wandb
-    #if use_wandb:
+    if use_wandb:
 
-        #wandb.init(project=train_params.logging.wandb_project,
-        #           entity=train_params.logging.wandb_entity,
-        #           tags=train_params.logging.wandb_tag,
-        #           config=wandb_config,
-        #           sync_tensorboard=True)
+        wandb.init(project=train_params.logging.wandb_project,
+                   entity=train_params.logging.wandb_entity,
+                   tags=train_params.logging.wandb_tag,
+                   config=wandb_config,
+                   sync_tensorboard=True)
 
     eps_start = train_params.dddqn.epsilon_start
 
@@ -58,7 +58,7 @@ def train(env_params, train_params, wandb_config=None):
     learn_timer = Timer()
 
     # TensorBoard writer
-    #logger = TBLogger(wandb.run.dir if use_wandb else train_params.training.tensorboard_path)
+    logger = TBLogger(wandb.run.dir if use_wandb else train_params.training.tensorboard_path)
 
     print("\nTraining: {} agents, {}x{} env, {} episodes.\n".format(env_params.n_agents, env_params.width, env_params.height, train_params.training.episodes))
 
@@ -68,6 +68,8 @@ def train(env_params, train_params, wandb_config=None):
 
     agent_prev_obs = [None] * env_params.n_agents
     agent_prev_action = [2] * env_params.n_agents
+
+    stopped_for_deadlock = False
 
     for episode in range(train_params.training.episodes+1):
         # do the train execution here
@@ -85,7 +87,9 @@ def train(env_params, train_params, wandb_config=None):
                 agent_prev_obs[agent] = copy_obs(obs[agent])
 
         # Run episode
+        #print('Max steps ', max_steps)
         for step in range(max_steps):
+            #print('Step ', step)
             # Action dictionary to feed to step
             agents_action = dict()
 
@@ -130,6 +134,7 @@ def train(env_params, train_params, wandb_config=None):
                 env.show_render()
 
             if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] or env.dl_controller.starvations[a.handle] for a in env.agents]):
+                stopped_for_deadlock = True
                 break
 
         # Epsilon decay
@@ -156,5 +161,5 @@ def train(env_params, train_params, wandb_config=None):
         # Update total time
         training_timer.end()
 
-        #if train_params.training.print_stats and episode >= 1:
-            #logger.write(env, train_params.dddqn, {"step": step_timer, "reset": reset_timer, "learn": learn_timer, "train": training_timer}, episode)
+        if train_params.training.print_stats and episode >= 1 and not stopped_for_deadlock:
+            logger.write(env, train_params.dddqn, {"step": step_timer, "reset": reset_timer, "learn": learn_timer, "train": training_timer}, episode)
