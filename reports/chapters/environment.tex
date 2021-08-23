@@ -30,5 +30,32 @@ Since every agent is liable to malfunctions, much like real trains, there are pr
 \item \textbf{Max speed}: a fraction between 0 and 1. (\textit{e.g.} a speed of 1/2 means that the agent changes cell after 2 time steps)
 \item \textbf{Position fraction}: related to speed, indicates when the next action can be taken
 \end{itemize}
+\section{Environment Actions}
+\label{sec:envActions}
+The available actions are:
+\begin{itemize}
+\item \textbf{DO NOTHING (0)}: Default action if None has been provided or the value is not within this list. If agent.moving is True then the agent will MOVE FORWARD.
+\item \textbf{MOVE LEFT (1)}: If agent.moving is False then becomes True. If it’s possible turn the agent left, changing its direction, otherwise if agent.moving is True tries the action MOVE FORWARD.
+\item \textbf{MOVE FORWARD (2)}: If agent.moving is False then becomes True. It updates the direction of the agent and if the new cell is a dead-end the new direction is the opposite of the current.
 
-\section{Our environment}
+\item \textbf{MOVE RIGHT (3)}: If agent.moving is False then becomes True. If it’s possible turn the agent right, changing its direction, otherwise if agent.moving is True tries the action MOVE FORWARD.
+\item \textbf{STOP MOVING (4)}: If agent.moving is True then becomes False. Stop the agent in the current occupied cell.
+\end{itemize}
+\section{Rewards}
+The rewards are based on the following values:
+\begin{itemize}
+\item invalid action penalty which is currently set to 0, penalty for requesting an invalid action
+\item \textbf{step penalty} which is -1 * alpha, penalty for a time step.
+\item \textbf{global reward} which is 1 * beta, a sort of default penalty.
+\item stop penalty which is currently set to 0, penalty for stopping a moving agent
+\item start penalty which is currently set to 0, penalty for starting a stopped agent
+\end{itemize}
+The full step penalty is computed as the product between step penalty and
+agent.speed data[’speed’]. There are different rewards for different situations:
+\begin{itemize}	
+\item single agents that are in DONE or in DONE REMOVED have zero reward.
+\item all agents that have finished in this episode (checked at the end of the step) or previously (checked at the beginning of the step), have reward equal to the global reward (when in step all agents have reached their target)
+\item full step penalty is assigned when an agent is READY TO DEPART and in the current turn moves or stay there (2th step agent case), or when is in malfunction.
+\item full step penalty plus the other penalties (invalid action penalty, stop penalty and start penalty) when the agent is finishing actions or start new ones. Currently the other penalties are all set to zero.
+\end{itemize}
+The end of the Each train starts counting rewards since the beginning, not since it becomes ACTIVE. Currently it is possible to say that agents’ rewards are always full step, excluding when the episode ends and when they have finished, where is 0.
