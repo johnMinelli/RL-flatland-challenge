@@ -290,7 +290,7 @@ class DagObserver(ObservationBuilder):
                         visited[y, x] = True
                         x, y, dir = get_next_oriented_pos(self.env.rail, x, y, dir)
 
-        print(nx.to_dict_of_dicts(self.graph))
+        #print(nx.to_dict_of_dicts(self.graph))
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points, real_target):
         quit = None; invalid_transitions = []

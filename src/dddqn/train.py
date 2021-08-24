@@ -69,7 +69,6 @@ def train(env_params, train_params, wandb_config=None):
     agent_prev_obs = [None] * env_params.n_agents
     agent_prev_action = [2] * env_params.n_agents
 
-    stopped_for_deadlock = False
 
     for episode in range(train_params.training.episodes+1):
         # do the train execution here
@@ -134,7 +133,6 @@ def train(env_params, train_params, wandb_config=None):
                 env.show_render()
 
             if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] or env.dl_controller.starvations[a.handle] for a in env.agents]):
-                stopped_for_deadlock = True
                 break
 
         # Epsilon decay
@@ -161,5 +159,10 @@ def train(env_params, train_params, wandb_config=None):
         # Update total time
         training_timer.end()
 
-        if train_params.training.print_stats and episode >= 1 and not stopped_for_deadlock:
+
+        if train_params.training.print_stats and episode >= 1:
+
             logger.write(env, train_params.dddqn, {"step": step_timer, "reset": reset_timer, "learn": learn_timer, "train": training_timer}, episode)
+
+        #stopped_for_deadlock = False
+

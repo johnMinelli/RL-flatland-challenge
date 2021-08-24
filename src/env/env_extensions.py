@@ -44,7 +44,7 @@ class StatisticsController:
         self.score = 0
         self.step = 0
 
-    def update(self, action_dict, rewards, dones, info):
+    def update(self, action_dict, rewards, dones, info, deadlocks):
         """
         Update some statistics and print at the end of the episode
         """
@@ -59,7 +59,7 @@ class StatisticsController:
         self.score += float(sum(rewards.values())) if "original_rewards" not in info \
             else float(sum(info["original_rewards"].values()))
 
-        if dones["__all__"] or self.step >= self.max_steps:
+        if dones["__all__"] or self.step >= self.max_steps or deadlocks:
             return self._end_episode(info)
 
     def _end_episode(self, info):
