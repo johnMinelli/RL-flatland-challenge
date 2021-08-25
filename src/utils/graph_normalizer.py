@@ -101,7 +101,7 @@ def normalize_observation(observation):
         # then need to prune the observation
         nodes_to_prune = n_observations - max_state_size
         # don't want to prune the last elements, the agent attributes
-        observation_normalized_as_array = np.concatenate((observation_normalized_as_array[: -6 - nodes_to_prune, 0],observation_normalized_as_array[-6:, 0]))
+        observation_normalized_as_array = np.concatenate((observation_normalized_as_array[: -6 - nodes_to_prune, :],observation_normalized_as_array[-6:, :]))
 
 
     elif n_observations < max_state_size:

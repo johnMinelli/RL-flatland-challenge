@@ -81,9 +81,10 @@ def train(env_params, train_params, wandb_config=None):
         reset_timer.end()
 
         # Build initial agent-specific observations
-        for agent in range(env_params.n_agents):
-            if obs[agent] is not None:
-                agent_prev_obs[agent] = copy_obs(obs[agent])
+        #for agent in range(env_params.n_agents):
+        #    if obs[agent] is not None:
+        #        print(obs[agent])
+        #        agent_prev_obs[agent] = copy_obs(obs[agent])
 
         # Run episode
         #print('Max steps ', max_steps)
@@ -107,17 +108,18 @@ def train(env_params, train_params, wandb_config=None):
             # Environment step
             step_timer.start()
             next_obs, rewards, done, info = env.step(agents_action)
+
             step_timer.end()
 
             for agent in range(env_params.n_agents):
 
                 # learning step only for agents at switch/pre-switch decision
-                if agent in agents_policy_guided and not agent_prev_obs[agent] is None:
+                if agent in agents_policy_guided and not obs[agent] is None:
                     learn_timer.start()
-                    policy.step(agent_prev_obs[agent], agent_prev_action[agent], rewards[agent], obs[agent], done[agent])
+                    policy.step(obs[agent], agent_prev_action[agent], rewards[agent], next_obs[agent], done[agent])
                     learn_timer.end()
 
-                    agent_prev_obs[agent] = copy_obs(obs[agent])
+                    #agent_prev_obs[agent] = copy_obs(obs[agent])
 
 
                 if agent in agents_action:
@@ -133,6 +135,16 @@ def train(env_params, train_params, wandb_config=None):
                 env.show_render()
 
             if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] or env.dl_controller.starvations[a.handle] for a in env.agents]):
+            #if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] for a in env.agents]):
+                #if any([env.dl_controller.deadlocks[a.handle] for a in env.agents]):
+                #    with open('deadlocks.txt', 'a+') as f:
+                #        f.write('deadlock')
+                #if any([env.dl_controller.starvations[a.handle] for a in env.agents]):
+                #    with open('starvations.txt', 'a+') as f:
+                #        f.write('starvation')
+                #if all([done[a.handle] for a in env.agents]):
+                #    with open('dones.txt', 'a+') as f:
+                #        f.write('done')
                 break
 
         # Epsilon decay
