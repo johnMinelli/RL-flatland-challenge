@@ -172,6 +172,7 @@ class DeadlocksGraphController:
         self.env = env
         self.deadlocks = [False] * self.env.number_of_agents
         self.starvations = [False] * self.env.number_of_agents
+        self.starvations_target = [False] * self.env.number_of_agents
         self.deadlock_positions = set()  # for simplicity instead (node to node) this is (x, y, exit_dir)
 
     """
@@ -206,7 +207,7 @@ class DeadlocksGraphController:
                             opposite_label = (*label[0:2], opposite_dir(label[2]))
                             self.deadlock_positions.add(opposite_label)
                             self.deadlocks[handle] = True
-                            # TODO also give feedback?
+                            self.starvations_target[handle] = True
                         # else:
                         self.starvations[handle] = True
                         info["starvations"][handle] = True

@@ -31,6 +31,7 @@ class StatisticsController:
         self.action_count = [0] * self.action_space
         self.normalized_score = []
         self.normalized_score_history = []
+        self.accumulated_deadlocks = []
         self.completion_history = []
         self.completion = 0
         self.episode = 0
@@ -70,6 +71,8 @@ class StatisticsController:
                                   for a in range(self.num_agents))
         self.completion = self.tasks_finished / max(1, self.num_agents)
         self.completion_history.append(self.completion)
+        self.deadlocks_percentage = sum([info["deadlocks"][agent] for agent in range(self.num_agents)]) / self.num_agents
+        self.accumulated_deadlocks.append(self.deadlocks_percentage)
         self.action_probs = np.round(self.action_count / np.sum(self.action_count), 3)
 
         self.action_count = [0] * self.action_space
@@ -80,12 +83,16 @@ class StatisticsController:
             " Avg: {:.3f}"
             "\tDone: {:.2f}%"
             " Avg: {:.2f}%"
+            "\tDeads: {:.2f}%"
+            " Avg: {:.2f}%"
             "\tAction Probs: {}".format(
                 self.episode,
                 self.normalized_score,
                 np.mean(self.normalized_score_history),
                 100 * self.completion,
                 100 * np.mean(self.completion_history),
+                100 * self.deadlocks_percentage,
+                100 * np.mean(self.accumulated_deadlocks),
                 self._format_action_prob()
             ), end=" ")
         return {'action_count': self.action_count,
