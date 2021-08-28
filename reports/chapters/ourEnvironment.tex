@@ -1,171 +1,18 @@
-Our flatland environment is based on RailEnv where we wrapped the main functionalities, methods and we added parameters in order to personalizehave parameterized it through file yaml \textit{"env$\_$parameters.yml"}. 
-We have wrapped and added these main functionalities:
-\begin{itemize}
-\item \textbf{reset}: in this method, the info and observation are reset at start state through super method of the enviroment of flatland consequentially they are reset also deadlock and statistics controller. this method are called at the end of every episode.
-\item \textbf{step}: in this method, they are calculated observation, standard rewards , standard info and the list of agents have finished their run through super method of the enviroment. After we encode additional informations with method "encode$\_$info" that they will need in the next steps. \\
-The next steps are check the deadlock, normalize observation and persolizate the rewards. At the end they are updated statistics for the training of model and it is saved observation for the next step.
-\item \textbf{render env}: in this method through a parameter, it is launched the graphic interface.
-\item \textbf{encode info}: in this method they are passed like a parameters the information and observation, they are used to fill the following variables that they are added at the other information:
-\begin{itemize}
-\item \textbf{decision$\_$required}: this variable is used to determine if agent is into a switch so the observation is not None. This flag for every agent, if is true it allows to call the act of the policy.
-\item \textbf{shortest$\_$path}: this variable is a list of minimum numebr of switch remain to arrive at target for every agent. It is used to calculate rewards to determine if the agent come near in at target as compared to previous step.
-\item \textbf{shortest$\_$path$\_$cost}: this variable is a list of minimum distance remain to arrive at target for every agent. 
-\item \textbf{shortest$\_$path$\_$pre}: this variable is a list of minimum numebr of switch remain to arrive at target for every agent in previous step. It is used to calculate rewards to determine if the agent come near in at target as compared to current step.
-\item \textbf{shortest$\_$path$\_$pre$\_$cost}: this variable is a list of minimum distance remain to arrive at target for every agent in previous step.
-\end{itemize}
-\end{itemize}	
-\section{Parameters}
-There is a file "env$\_$parameters" that it contains all configuration of our enviroments. This file is subdivided in three type of enviroments:
-\begin{enumerate}
-	\item [1.] Small size:
-	\begin{itemize}
-		\item $seed: 2 (Random seed used to generate rails)$
-		\item $n\_agents: 3 (Number of trains to spawn)$
-		\item $width: 40 (Environment width)$
-		\item $height: 40 (Environment height)$
-		\item $n\_cities: 2 (Maximum number of cities where agents can start or end)$
-		\item $grid: False (Type of city distribution)$
-		\item $max\_rails\_between\_cities: 2 (Maximum number of tracks allowed between cities)$
-		\item $max\_rails\_in\_city: 3 (Maximum number of parallel tracks within a city)$
-		\item  $variable\_speed: False (Enable variable speed)$
-		\item $malfunctions\_enabled: True (Enable malfunctions)$ 
-		\item $malfunction\_rate: !!float 0.005 (Malfunction rate)$
-		\item $min\_duration: 20 (Malfunction minimum duration)$
-		\item $max\_duration: 50 (Malfunction maximum duration)$
-		\item $render: False$
-		\item $max\_state\_size: 24$
-	\end{itemize}
-	\item [2.] Medium size:
-		\begin{itemize}
-		\item $seed: 2$
-		\item $n\_agents: 7 $
-		\item $width: 60 $
-		\item $height: 60 $
-		\item $n\_cities: 5 $
-		\item $grid: False $
-		\item $max\_rails\_between\_cities: 2 $
-		\item $max\_rails\_in\_city: 3 $
-		\item  $variable\_speed: False $
-		\item $malfunctions\_enabled: True $ 
-		\item $malfunction\_rate: !!float 0.005 $
-		\item $min\_duration: 15 $
-		\item $max\_duration: 50 $
-		\item $render: False$
-		\item $max\_state\_size: 48$
-	\end{itemize}
-	\item [3.] Big size:
-		\begin{itemize}
-		\item $seed: 2$
-		\item $n\_agents: 10 $
-		\item $width: 80 $
-		\item $height: 80 $
-		\item $n\_cities: 9 $
-		\item $grid: False $
-		\item $max\_rails\_between\_cities: 5 $
-		\item $max\_rails\_in\_city: 5 $
-		\item  $variable\_speed: False $
-		\item $malfunctions\_enabled: True $ 
-		\item $malfunction\_rate: !!float 0.0125 $
-		\item $min\_duration: 20 $
-		\item $max\_duration: 50 $
-		\item $render: False$
-		\item $max\_state\_size: 72$
-	\end{itemize}
-\end{enumerate}
-In addition there are a some parameters to calculate the rewards:
-\begin{enumerate}
-	\item Rewards:
-	\begin{itemize}
-		\item $deadlock\_penalty: -10$
-		\item $starvation\_penalty: -0.5$
-		\item $goal\_reward: 10$
-		\item $reduce\_distance\_penalty: 0.5$
-	\end{itemize}	
-\end{enumerate}
-\section{Metrics}
-The metrics are fundamental to understand how enviroment and policy are behaving so  
-we have also implemented some environmental Controller to flexibly add and/or remove various features in the train/evaluation phase, preserving the original Flatland’s implementation. Going into more details, the implementations of the two proposed approaches share some general features, for the generation of the environment, observations, deadlocks and display performances which are controllable in the main using some hyperparameters. We implemented a StatisticsController to compute and print the metrics to evaluate the algorithm’s performance:
-\begin{itemize}
-	\item \textbf{normalized\_score} is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainable, computed as the product between the number of agents and the maximum number of steps in the episode.
-	In the worst case, all agents do not reach their destination, therefore for each step they get a negative reward.
-	\begin{equation}{\frac{score}{max\_steps \cdot n\_agents}}\label{eq:score}\end{equation}
-	\item \textbf{accumulated\_normalized\_score} is the mean of \textbf{normalized\_score} obtained up to that point.
-	\begin{equation}{\frac{\sum{normalized\_score}}{N}}\label{eq:score_acc}\end{equation}
-	\item \textbf{completion\_percentage} is the percentage of agents who reached their destination in the episode.
-	\begin{equation}{100 \cdot {\frac{tasks\_finished}{n\_agents}}}\label{eq:compl_perc}\end{equation}
-	\item \textbf{accumulated\_completion} is the mean of \textbf{completion\_percentage} obtained up to that point.
-	\begin{equation}{\frac{\sum{completion\_percentage}}{N}}\label{eq:compl_acc}\end{equation}
-	\item \textbf{deadlocks\_percentage} is the percentage of deadlocks that occured in the episode.
-	\begin{equation}{100 \cdot {\frac{n\_deadlocks}{n\_agents}}}\label{eq:deads_perc}\end{equation}
-	\item \textbf{accumulated\_deadlocks} is the mean of \textbf{deadlocks\_percentage} obtained up to that point.
-	\begin{equation}{\frac{\sum {deadlocks\_percentage}}{N}}\label{eq:deads_acc}\end{equation}
-\end{itemize}
-The \textbf{StatisticsController} also computes the probability distribution of the actions taken during each episode.
-We integrated our solution with \ textbf {TensorBoard} in order to be able to analyze the evolution of both training data (losses, expected values, memory sizes, exploration rates \ldots) and performance metrics.
-\section{Evaluation and platforms}
-As we did have at our disposal a enought powerful and dedicated machines (our computers) to run our experiments, we don't faced a lot of difficulties in carrying on experiments but in complex environments where the simulation becomes computationally expensive the our machines are not so powerful to run our experiments.
-We observed that the major bottlenecks are in the Flatland code for which it is necessary to have more CPU power.
-Due to this reasons we decided to limit the complexity of the experiments especially in terms of number of agent and map size, in particular we considered the following environments:
-\begin{enumerate}
-	\item [1.] Medium size:
-	\item [2.] Big size:
-\end{enumerate}
-The features of these enviroments are descripted in \hyperref[sec:ourParameters]{3.1}.\\
-With 1000 iterations for each test session. \\
-In order to evaluate different algorithms, combinations of hyperparameters and strategies we looked for a tool able to store, track, share and effectively compare different runs without the worry of continuously make notes on external files of our progresses.
-We found such a tool in \href{https://www.wandb.com/}{Weights \& Biases}.
-Subscribing to a free account provides an effective and very intuitive way of monitoring a Deep Learning project.
-Weights \& Biases is used by OpenAI and other leading companies, it supports many platforms and can be integrated rapidly in the project, for instance we managed to connect it to our previous TensorBoard logging and to immediately start testing.
-Additionally to a rich customizable interface to plot graphs it also provides hyperparameter tuning, called Sweep
-\section{Action}
-The Flatland environment provides for each agent five different actions that they are described in \hyperref[sec:envActions]{2.3}. \\ 
-The DO NOTHING is not necessary to reach a solution, because the agent can continue moving forward deciding each time the action MOVE FORWARD or stop using STOP MOVING. As we think that further from being useless it may also damage the overall performance we decided to consider its removal. It has already mentioned the ambiguity of the actions MOVE LEFT and MOVE RIGHT where they are forbidden, it is natural to conclude that the agents may learn bad policies that maps these actions to the same effect of the MOVE FORWARD action. We observed that this phenomenon is very common due to the presence of long straight paths where the agent is allowed only to stop or move forward and concluded that even stopping in the middle of the rail does not have much sense because agents still stop when other agents block their way due to deadlocks, different speeds or malfunctions. \\
-For this reason we considered the possibility to force agents to only decide and learn in switches, where multiple actions are allowed and agents may learn to give way to other agents, avoid deadlocks, reach the target and more. This considerations lead to skip a lot of choices during learning and deploy Action Masking to avoid illegal actions in fact some studies have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary. A very common strategy to address invalid actions is applying negative rewards, but this also requires the agent to explore the actions and understand how to map actions to the possibility of applying them. During this period it is possible that the agent converges to a wrong policy. Invalid action masking helps to avoid sampling invalid actions by “masking out” the network outcomes corresponding to the invalid actions. \\
-Our approach is been to evaluate the action only before or on the switch and in these case there is a flag "decision$\_$required" equals true, otherwise all other case this flag is false. 
-\begin{itemize}
-\item \textbf{"decision$\_$required" = True}: In this case, action is decided by policy on based the observation.
-\item \textbf{"decision$\_$required" = False}: In this case, action is decided by environment and it is constant "RailEnvActions.MOVE$\_$FORWARD" so the agent will continue on the road that it has begun to run across in the same direction.
-\end{itemize}
-\section{Deadlock Controller}
-In Flatland, deadlocks are a truly catastrophic event because the agents involved can no longer move and are an obstacle to those free to navigate for the rest of the episode. Deadlocks detection is an additional challenge where as there is still no algorithm for this particular task that can be performed in polynomial time, however we have tried to implement a dection system that is as efficient as possible. We have implented two detection type based on type of observation, in fact:
-\begin{itemize}
-	\item \textbf{DeadlocksGraphController}: this controller is used when the observation is based on graph. These use observation graph of every agent where are marked node like deadlock node if there is the agent is in deadlock same thing for the case of starvation. 
-	We decided to mark the deadlock node when an agent is in or before a switch and the next step leads to go in a road where there is another agent in opposite direction. Before of this we marked a node in conflict, this means that there is a possibility to have a deadlock situation because there are at least two agent that they must pass for that switch. In fact to optimization the performance we go to check only this type of node where at previous step there is a possibility to have a problem.\\
-	For what concerns the starvation, we controll that every agent have the possibility to arrive on target so there is at least one route that allows the agent at current position to get to station. This controll is important because in the enviroment map is possible to have two agent in deadlock that they block the road and one agent may never reach the target and sooner or later end up in deadlock. Once we understand that an agent is on starvation, we decided to change the target and make it point where there is a situation of deadlock to free the map.	
-	\item \textbf{DeadlocksController}: this controller is the default used with any type of the observation. These use the distance matrix for determinate if an agent is in deadlock checking adjacent cell and comparing directions of other agent. In case there is a deadlock, the list of flag for deadlock is marked true for two agent that they are. In this controller is not detected if an agent is in starvation because he expects him to become in deadlock or finish the max number of step. This thing involves having a high risk to have more deadlock case or slow down the other agent so we have a deterioration of network but is more simple. 
-\end{itemize}	
-\section{Rewards}
-As mentioned before \hyperref[sec:envRewards]{2.4} the Flatland environment provides a basic rewards system which in the current implementation we can briefly describe in this way:
-\begin{itemize}
-	\item Every step agent receives a negative reward proportionate to his speed if he has not reached his destination.
-	\item Each agent receives a reward equal to 0 if he has reached his destination.
-	\item If all agents have reached their destination they receive a reward equal to 1.
-\end{itemize}
-We think that this reward system does not represent all the complexity of the problem because there is not much distinction between the states that agents may be in while navigating in the environment.
-Agents must basically learn two behaviors:
-\begin{itemize}
-	\item Reach their destination in the shortest time possible.
-	\item Avoid collisions with other agents.
-\end{itemize}
-This is not necessarily the order.
-Let's consider a small environment with 3 agents, in this case the main behavior is the first because the probability of a collision is not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for the overall performance. \\
-According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards. \\
-In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Reward Shaping}.
-Crafting rewards is not easy because as a consequence we could get the "Cobra Effect":
+\section{GNN}
+Given the use of a graph observation, we needed a mechanism to normalize it in order to then feed it to the reinforcement learning algorithm. GNN are typically used to create an embedded representation of node features, which is then used for another task, like classification or regression. \\ \\
 
-\begin{quoting}[font=itshape, begintext={"}, endtext={ \footnote{https://medium.com/@BonsaiAI/deep-reinforcement-learning-models-tips-tricks-for-writing-reward-functions-a84fe525e8e0}}]
-	Historically, the government tried to incentivize people to assist them in ridding the area of cobras.
-	If citizens brought in a venomous snake they had killed, the government would give you some money.
-	Naturally, people started breeding venomous snakes.
-\end{quoting}
+\noindent
+Specifically, we wanted to fully take advantage of the connections between the nodes, so that every node's representation, after being processed by the GNN, would in fact include data about the neighborhood. Thus, we employed \textbf{Graph Convolutional Networks}, as described in \cite{gcn}: GCN perform a convolution on graph features, by using an update rule 
+$$H^{(l + 1)} = \sigma(D^{\frac{-1}{2}} A' D^{\frac{-1}{2}} H^{l} W )$$ that, at each layer, effectively combines together features of adjacent nodes.\\ $H^0$ is the input feature matrix that contains features for each node, $W$ is a layer-specific weight matrix, while the \textbf{adjacency matrix} $A$ is actually summed with the idendity matrix in order to obtain $A'$, which considers also self-connections in the graph, otherwise each node in the GCN's output would never include information about themselves. \\
+Furthermore, the \textbf{degree matrix} $D$ is included for \textit{symmetric normalization}, since the matrix multiplication risks scaling up the features.\\
+Everything is then passed to an non-linear activation function $\sigma$, and repeated for a number of convolution layers which is a specific parameter of the model.\\ \\
 
-Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong. \\
-Anyway we have implemented a method in env class called \textbf{compute$\_$rewards} to flexibly choose during the training phase whether to use the rewards shaped or the standard Flatland's reward system. \\
-In the first case it is possible to choose how to shape the rewards by setting the following parameters:
-\begin{itemize}
-	\item\textbf{$deadlock\_penalty$}: It is used to penalize agents in deadlocks by value of variable.
-	\item \textbf{$starvation\_penalty$}: It is used to penalize agents in starvation by value of variable.
-	\item \textbf{$reduce\_distance\_penalty$}: It is used to reward agents who are moving towards their target by multiplying the value assigned to the reward associated with the agent calculated in the previous step.
-	\item \textbf{$goal\_reward$}: It is used to reward agents who have arrived at their destination by assigning them a positive reward.
-\end{itemize}
-	
+\begin{figure}[H] 
+\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/gcn.png}
+\centering
+\caption{GCN}
+\label{fig:s5} 
+\end{figure}
+\noindent
+As features, each node has the total \textbf{distance} from every adjacent switch in the graph observation, and a one-hot encoding of its type (starting or target node, conflict, deadlock, starvation node, or other). \\
+After the input node features have been processed by the GCN, agent-specific features are added to the vector representation that is then passed to the DQN.

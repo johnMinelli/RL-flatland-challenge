@@ -25,7 +25,7 @@ Since every agent is liable to malfunctions, much like real trains, there are pr
 \begin{itemize}
 \item 	\textbf{Malfunction rate}: the Poisson rate at which malfunctions occur
 \item \textbf{Malfunction}: a counter of the remaining time the agent will remain malfunctioning
-\item \textbf{Next malfunction}: number of steps until next malfunction
+\item \textbf{Next malfunction}: number of steps until next malfunction will occour
 \item \textbf{Number of malfunctions}: the total number of malfunctions for this agent
 \item \textbf{Max speed}: a fraction between 0 and 1. (\textit{e.g.} a speed of 1/2 means that the agent changes cell after 2 time steps)
 \item \textbf{Position fraction}: related to speed, indicates when the next action can be taken
@@ -34,29 +34,35 @@ Since every agent is liable to malfunctions, much like real trains, there are pr
 \label{sec:envActions}
 The available actions are:
 \begin{itemize}
-\item \textbf{DO NOTHING (0)}: Default action if None has been provided or the value is not within this list. If agent.moving is True then the agent will MOVE FORWARD.
-\item \textbf{MOVE LEFT (1)}: If agent.moving is False then becomes True. If it’s possible turn the agent left, changing its direction, otherwise if agent.moving is True tries the action MOVE FORWARD.
-\item \textbf{MOVE FORWARD (2)}: If agent.moving is False then becomes True. It updates the direction of the agent and if the new cell is a dead-end the new direction is the opposite of the current.
+\item \textbf{DO NOTHING (0)}: Default action if None has been provided or the value is not within this list. If agent.moving is True then the agent will \texttt{MOVE\_FORWARD}.
 
-\item \textbf{MOVE RIGHT (3)}: If agent.moving is False then becomes True. If it’s possible turn the agent right, changing its direction, otherwise if agent.moving is True tries the action MOVE FORWARD.
-\item \textbf{STOP MOVING (4)}: If agent.moving is True then becomes False. Stop the agent in the current occupied cell.
+\item \textbf{MOVE LEFT (1)}: If the transitions of the current cell allows it, the agent change it's direction toward the left, otherwise the action is masked with a \texttt{MOVE\_FORWARD}. If the agent is not moving then update also it's state to moving.
+
+\item \textbf{MOVE FORWARD (2)}: It updates the direction of the agent following the transitions allowed in the current cell. If the cell is a dead-end the new direction is the opposite of the current. If the agent is not moving then update also it's state to moving.
+
+\item \textbf{MOVE RIGHT (3)}: If the transitions of the current cell allows it, the agent change it's direction toward the right, otherwise the action is masked with a \texttt{MOVE\_FORWARD}. If the agent is not moving then update also it's state to moving.
+
+\item \textbf{STOP MOVING (4)}: Stop the agent in the current occupied cell and cause the change of value of the variable describing the state of the agent.
+
 \end{itemize}
 \section{Rewards}
 \label{sec:envRewards}
 The rewards are based on the following values:
 \begin{itemize}
-\item invalid action penalty which is currently set to 0, penalty for requesting an invalid action
-\item \textbf{step penalty} which is -1 * alpha, penalty for a time step.
-\item \textbf{global reward} which is 1 * beta, a sort of default penalty.
-\item stop penalty which is currently set to 0, penalty for stopping a moving agent
-\item start penalty which is currently set to 0, penalty for starting a stopped agent
+\item \textit{invalid action}: penalty which is currently set to 0, penalty for requesting an invalid action
+\item \textit{step penalty}: which is -1 * alpha, penalty for a time step.
+\item \textit{global reward}: calculated as 1 * beta, a sort of default penalty.
+\item \textit{stop penalty}: is currently set to 0, penalty for stopping a moving agent
+\item \textit{start penalty}: is currently set to 0, penalty for starting a stopped agent
 \end{itemize}
-The full step penalty is computed as the product between step penalty and
-agent.speed data[’speed’]. There are different rewards for different situations:
-\begin{itemize}	
-\item single agents that are in DONE or in DONE REMOVED have zero reward.
+\todo{riguarda da qui in giù}
+The full step penalty is computed as the product between \textit{step penalty} and agent speed data (\textit{i.e.} the \textit{speed} variable).\
+There are different rewards for different situations:
+\begin{itemize}
+\item agents that are in status \texttt{DONE} or \texttt{DONE\_REMOVED} have zero reward.
 \item all agents that have finished in this episode (checked at the end of the step) or previously (checked at the beginning of the step), have reward equal to the global reward (when in step all agents have reached their target)
-\item full step penalty is assigned when an agent is READY TO DEPART and in the current turn moves or stay there (2th step agent case), or when is in malfunction.
+
+\item full step penalty is assigned when an agent is in state \texttt{READY\_TO\_DEPART} and in the current turn moves or stay there (2th step agent case), or when is in malfunction.
 \item full step penalty plus the other penalties (invalid action penalty, stop penalty and start penalty) when the agent is finishing actions or start new ones. Currently the other penalties are all set to zero.
 \end{itemize}
-The end of the Each train starts counting rewards since the beginning, not since it becomes ACTIVE. Currently it is possible to say that agents’ rewards are always full step, excluding when the episode ends and when they have finished, where is 0.
+The end of the Each train starts counting rewards since the beginning, not since it becomes \texttt{ACTIVE}. Currently it is possible to say that agents’ rewards are always full step, excluding when the episode ends and when they have finished, where is 0.
