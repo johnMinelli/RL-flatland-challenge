@@ -3,6 +3,7 @@ from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.utils.rendertools import RenderTool
 
 from src.env.env_extensions import StatisticsController, NormalizerController
+from src.utils import dag_observer
 
 
 class FlatlandRailEnv(RailEnv):
@@ -25,15 +26,15 @@ class FlatlandRailEnv(RailEnv):
 
     def reset(self):
         self.obs_builder.set_env(self)
-        obs, info = super().reset()  # regenerate_rail=, regenerate_schedule= are useful?
+        obs, info = super().reset()  # regenerate_rail
 
         # Reset rendering
         if self.params.render:
-            self.env_renderer = RenderTool(self, show_debug=True, screen_height=1080, screen_width=1920, gl="PGL")
+            self.env_renderer = RenderTool(self, show_debug=True, gl="PGL")
             self.env_renderer.set_new_rail()
 
         # Encode information for policy action decision
-        info = self._encode_info(info, obs)
+        info = self._extract_info(info, obs)
         # Reset deadlocks
         info = self.dl_controller.reset(info)
         # Normalization phase
@@ -48,12 +49,12 @@ class FlatlandRailEnv(RailEnv):
         """
         Normalize observations by default, update deadlocks and step.
 
-        :param action_dict:
-        :return:
+        :param action_dict: action choices of the network for each agent
+        :return: dictionaries with information about the step [obs, rewards, dones, info]
         """
         obs, rewards, dones, info = super().step(action_dict)
-        # Encode information for policy action decision
-        info = self._encode_info(info, obs) # TODO change name when it will be defined it's aim
+        # Extract information from observation for policy action decision
+        info = self._extract_info(info, obs)
         # Deadlocks check
         info = self.dl_controller.check_deadlocks(info, obs)
         # Normalization phase
@@ -63,7 +64,6 @@ class FlatlandRailEnv(RailEnv):
         # Stats progress
         stats = self.stats_controller.update(action_dict, rewards, dones, info)
         if stats: self.stats = stats
-
 
         self.prev_observations = obs
         return obs, rewards, dones, info
@@ -77,7 +77,7 @@ class FlatlandRailEnv(RailEnv):
         if self.params.render:
             return self.env_renderer.render_env(
                 show=True,
-                frames=False,
+                frames=True,
                 show_observations=False,
                 show_predictions=False)
 
@@ -90,12 +90,11 @@ class FlatlandRailEnv(RailEnv):
             return self.env_renderer.close_window()
 
     def get_act(self, agent):
-        #TODO Verificare che il move forward sia corretto
         return RailEnvActions.MOVE_FORWARD
 
-# private
+# Private
 
-    def _encode_info(self, info, obs):
+    def _extract_info(self, info, obs):
         # Use observations to encode information for reward computation
         # When the agent is distant to a switch the observer return None
         # The starvation and pre-touch deadlock are handled in deadlock controller
@@ -111,15 +110,15 @@ class FlatlandRailEnv(RailEnv):
                 continue
             info["decision_required"][i_agent] = True
             for _, start_node in obs[i_agent].nodes.items():
-                if "start" in start_node: break
-            if not "deadlock" in start_node:
+                if dag_observer.DagNodeLabel.START in start_node: break
+            if dag_observer.DagNodeLabel.DEADLOCK not in start_node:
                 switch = start_node["shortest_path"]
                 distance = start_node["shortest_path_cost"]
                 info["shortest_path"][i_agent] = switch
                 info["shortest_path_cost"][i_agent] = distance
                 if not self.prev_observations[i_agent] is None:
                     for _, start_node in self.prev_observations[i_agent].nodes.items():
-                        if "start" in start_node: break;
+                        if dag_observer.DagNodeLabel.START in start_node: break;
                     switch_pre = start_node["shortest_path"]
                     distance_pre = start_node["shortest_path_cost"]
                 else:
@@ -130,8 +129,8 @@ class FlatlandRailEnv(RailEnv):
         return info
 
     def _compute_rewards(self, rewards, dones, info):
-        # rewards for previous action which caused such observation is given to the policy to learn
-        # also will be given prev_step observation and current observation
+        # Rewards for previous action which caused such observation is given to the policy to learn
+        # Also will be given prev_step observation and current observation
         for i_agent, agent in enumerate(self.agents):
             if dones[i_agent]:
                 rewards[i_agent] = self.params.rewards.goal_reward
@@ -145,7 +144,19 @@ class FlatlandRailEnv(RailEnv):
         return rewards
 
 
-# accessors
+# Accessors
 
     def get_rail_env(self):
         return super()
+
+def showdbg(env):
+    env.env_renderer = RenderTool(env, show_debug=True, gl="PGL")
+    env.env_renderer.set_new_rail()
+    return env.env_renderer.render_env(
+        show=True,
+        frames=True,
+        show_observations=False,
+        show_predictions=False)
+
+def closedbg(env):
+    env.env_renderer.close_window()

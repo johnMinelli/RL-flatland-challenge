@@ -172,7 +172,7 @@ class DeadlocksGraphController:
         self.env = env
         self.deadlocks = [False] * self.env.number_of_agents
         self.starvations = [False] * self.env.number_of_agents
-        self.deadlock_positions = set()  # for simplicity instead (node to node) this is (x, y, exit_dir)
+        self.deadlock_positions = set()  # for simplicity instead (node to node) this is (x, y, exit_point)
 
     """
         Check for new deadlocks, updates info and returns it.
@@ -194,7 +194,7 @@ class DeadlocksGraphController:
                         if node["switch_behind"]:
                             info["deadlocks"][handle] = True
                             if node['steps_to_deadlock'] == 0:
-                                try: self.deadlock_positions.add(opposite_label)
+                                try: self.deadlock_positions.remove(opposite_label)
                                 except: pass
                                 self.deadlocks[handle] = True
                         elif node['steps_to_deadlock'] == 0:

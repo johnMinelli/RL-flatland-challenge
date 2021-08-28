@@ -12,6 +12,7 @@ TRANS = [
 def get_next_oriented_pos(rail, x, y, orientation, num_step=1):
     """
     get the position after a movement in a direction following transition function
+    :param rail: rail environment
     :param x: current position
     :param y: current position
     :param orientation: current orientation
@@ -31,29 +32,30 @@ def get_next_oriented_pos(rail, x, y, orientation, num_step=1):
             return x, y, k % 4
     raise Exception('InvalidTransition')
 
-def get_next_pos(x, y, direction, num_step=1):
+def get_next_pos(x, y, exit_point, num_step=1):
     """
     get the position after a movement
     :param x: current position
     :param y: current position
-    :param direction: direction of movement
+    :param exit_point: direction of movement
     :return: the cell position after the movement
     """
-    if direction == 0:
-        return x, y - num_step, direction
-    elif direction == 1:
-        return x + num_step, y, direction
-    elif direction == 2:
-        return x, y + num_step, direction
+    if exit_point == 0:
+        return x, y - num_step, exit_point
+    elif exit_point == 1:
+        return x + num_step, y, exit_point
+    elif exit_point == 2:
+        return x, y + num_step, exit_point
     else:
-        return x - num_step, y, direction
+        return x - num_step, y, exit_point
 
-def get_allowed_directions(rail, x, y):
+def get_allowed_points(rail, x, y):
     """
-    get all the positions obtainable after a movement allowed by transition function
+    possible enter/exit_points usable in the given cell
+    :param rail: rail environment
     :param x: current position
     :param y: current position
-    :return: directions accessible
+    :return: enter/exit_points accessible
     """
     access = [False]*4
     bits = format(rail.grid[y, x], 'b').rjust(16, '0')
@@ -61,8 +63,24 @@ def get_allowed_directions(rail, x, y):
         if bit == '1': access[k%4] = True
     return access
 
+def get_agent_position(agent, dir=False):
+    '''
+    :param agent: agent dictionary
+    :return: the (x,y) coordinate
+    '''
+    if dir:
+        return (*((agent.initial_position if agent.position is None else agent.position)[::-1]), agent.initial_direction if agent.direction is None else agent.direction)
+    else:
+        return (agent.initial_position if agent.position is None else agent.position)[::-1]
+
 def opposite_dir(direction):
     return (direction+2) % 4
+
+def access_point_from_dir(direction):
+    return opposite_dir(direction)
+
+def dir_from_access_point(access_point):
+    return opposite_dir(access_point)
 
 def is_switch(rail, x, y, dir=None):
     if dir is None:

@@ -5,6 +5,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from spektral.utils import gcn_filter
 
+from src.utils.dag_observer import DagNodeLabel
 from src.utils.utils import Struct
 from src.dddqn.model import GCN
 
@@ -12,15 +13,15 @@ def get_node_types(nodes):
     attrs = nodes._nodes
     node_types = []
     for label, v in attrs.items():
-        if 'start' in v:
+        if DagNodeLabel.START in v:
             node_types.append('start')
-        elif 'target' in v:
+        elif DagNodeLabel.TARGET in v:
             node_types.append('target')
-        elif 'deadlock' in v:
+        elif DagNodeLabel.DEADLOCK in v:
             node_types.append('deadlock')
-        elif 'starvation' in v:
+        elif DagNodeLabel.STARVATION in v:
             node_types.append('starvation')
-        elif 'conflict' in v:
+        elif DagNodeLabel.CONFLICT in v:
             node_types.append('conflict')
         else:
             node_types.append('other')
