@@ -22,6 +22,10 @@ class UniformReplayBuffer(ReplayBuffer):
         assert self.batch_size < buffer_size, "Batch greater than buffer size"
         #self.device = device
 
+    def get_batch_size(self):
+        return self.batch_size
+
+
     def add(self, experience, td_error=None):
         '''
         Add a new experience to memory

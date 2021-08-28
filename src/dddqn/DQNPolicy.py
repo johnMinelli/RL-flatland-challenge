@@ -47,6 +47,9 @@ class DQNPolicy(Policy):
         self.target_model = DQN(self.action_size)  # fixed q-targets
 
         # do not specify batch size, only input dimension
+        # because batch size varies, the model is used for training
+        # where a fixed number of batches is used, but also for
+        # action selection, where just a single state is used in forward propagation
         self.model.build(input_shape=(None, self.state_size))
         self.target_model.build(input_shape=(None, self.state_size))
 
@@ -57,7 +60,6 @@ class DQNPolicy(Policy):
                     state (array_like): current state
                 """
         n = np.random.random()
-
         if n <= self.epsilon:
             return np.random.randint(0, self.action_size)
         else:
@@ -107,12 +109,14 @@ class DQNPolicy(Policy):
                    experiences (Tuple): tuple of (s, a, r, s', done) tuples
                    indexes, weights
         """
-
         states, actions, rewards, next_states, dones = experiences # sampled
 
-        # batch of observation in memory is a tuple, need to turn it to array
+        # batch of observation in memory is a list, need to turn it to array
         states = np.stack(states, axis=0)
         next_states = np.stack(next_states, axis=0)
+        # turn from (batch_size, input_size, 1) to (batch_size, input_size)
+        states = states.reshape(states.shape[0], states.shape[1])
+        next_states = next_states.reshape(next_states.shape[0], next_states.shape[1])
 
         q_pred = self.model(states)
         q_next = tf.math.reduce_max(self.target_model(next_states), axis=1, keepdims=True).numpy()

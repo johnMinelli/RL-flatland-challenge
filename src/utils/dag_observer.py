@@ -263,7 +263,7 @@ class DagObserver(ObservationBuilder):
                         visited[y, x] = True
                         x, y, dir = get_next_oriented_pos(self.env.rail, x, y, dir)
 
-        print("DAG:", nx.to_dict_of_dicts(self.graph))
+        # print("DAG:", nx.to_dict_of_dicts(self.graph))
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points, target, ignore=1):
         quit = None; invalid_transitions = []
@@ -422,7 +422,7 @@ class DagObserver(ObservationBuilder):
                     # remove original edges but leave untouched the intermediary transitions
                     if next_node == destination_node:
                         dead_end_found = True
-                        destination_orientation = opposite_dir(next_orientation)  # ok 
+                        destination_orientation = opposite_dir(next_orientation)  # ok
                         cost += general_graph.nodes[next_node]["dead_end"][next_orientation][next_exit_point]  # not ok
                     else:
                         destination_orientation = dir_from_access_point(general_graph.get_edge_data(next_node, destination_node, next_exit_point)['access_point'][destination_node])
