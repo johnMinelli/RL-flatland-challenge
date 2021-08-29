@@ -550,7 +550,7 @@ class DagObserver(ObservationBuilder):
             dying_positions = self.env.dl_controller.deadlock_positions  # TESTME not ok if no agent are deadlocked and dying_positions is empty
             # for pos_x, pos_y, exit_point in dying_positions:
             if len(dying_positions) != 0:
-                pos_x, pos_y, exit_point = dying_positions[0]  # ok
+                pos_x, pos_y, exit_point = list(dying_positions)[0]  # ok
                 label = (pos_x, pos_y)
                 ending_points.append(label)
                 for orientation in range(4):
