@@ -125,7 +125,6 @@ def train(env_params, train_params, wandb_config=None):
                 if agent in agents_action:
                     agent_prev_action[agent] = agents_action[agent]
                 else:
-                    #TODO verifica che sia corretto quando il do nothing è imposto dal enviroment
                     agent_prev_action[agent] = int(RailEnvActions.DO_NOTHING)
 
                 if next_obs[agent] is not None:

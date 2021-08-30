@@ -2,6 +2,7 @@ import numpy as np
 from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
 
+from src.utils import dag_observer
 from src.utils.rail_utils import *
 
 
@@ -190,9 +191,9 @@ class DeadlocksGraphController:
             graph = obs[handle]
             if not graph is None:
                 for label, node in graph.nodes.items():
-                    if "deadlock" in node:
+                    if dag_observer.DagNodeLabel.DEADLOCK in node:
                         opposite_label = (*label[0:2], opposite_dir(label[2]))
-                        if node["switch_behind"]:
+                        if node["first_time_detection"]:
                             info["deadlocks"][handle] = True
                             if node['steps_to_deadlock'] == 0:
                                 try: self.deadlock_positions.remove(opposite_label)
@@ -202,13 +203,7 @@ class DeadlocksGraphController:
                             self.deadlock_positions.add(opposite_label)
                             self.deadlocks[handle] = True
                         break
-                    elif "starvation" in node:
-                        if self.env.agents[handle].initial_position == self.env.agents[handle].position:
-                            opposite_label = (*label[0:2], opposite_dir(label[2]))
-                            self.deadlock_positions.add(opposite_label)
-                            self.deadlocks[handle] = True
-                            self.starvations_target[handle] = True
-                        # else:
+                    elif dag_observer.DagNodeLabel.STARVATION in node:
                         self.starvations[handle] = True
                         info["starvations"][handle] = True
 

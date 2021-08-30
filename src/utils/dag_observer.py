@@ -86,7 +86,7 @@ class DagObserver(ObservationBuilder):
                 has_switch_behind = True
                 node_behind = prev_start_node
 
-        while not is_switch(self.env.rail, *start_pos, start_dir):
+        while not is_switch(self.env.rail, *start_pos, start_dir) if not deadlock_flag else any([ is_switch(self.env.rail, *start_pos, d) for d in range(4) if d != start_dir]):
             # update counters and flags
             if start_pos == target: target_flag = True; break
             if (not deadlock_flag) and (*start_pos, start_dir) in active_agents_position and (not start_pos in dead_agents_position):
@@ -96,6 +96,7 @@ class DagObserver(ObservationBuilder):
             if (not deadlock_flag) and steps != 0 and ( ((*start_pos, opposite_dir(start_dir)) in active_agents_position and opposite_deviations <= 0) or start_pos in dead_agents_position):
                 deadlock_flag = True; steps_to_deadlock += steps - 1
             # iterate
+            if is_dead_end(self.env.rail, *start_pos) and deadlock_flag: has_switch_behind = True; break
             if is_dead_end(self.env.rail, *start_pos): start_dir = opposite_dir(start_dir)
             x, y, start_dir = get_next_oriented_pos(self.env.rail, *start_pos, start_dir)
             start_pos = (x, y)
@@ -107,7 +108,6 @@ class DagObserver(ObservationBuilder):
 
         if target_flag:  # target road
             return None
-
         elif deadlock_flag:  # deadlock road
             if steps_to_deadlock == 0 and has_switch_behind:  # the edge is full so remove it from the graph
                 self._remove_edge_and_transition(self.graph, node_behind[0:2], start_pos, node_behind[2])
@@ -118,11 +118,11 @@ class DagObserver(ObservationBuilder):
             all([any([(n[0],n[1], opp_d) in active_agents_position for opp_d in range(4) if opp_d != n[2]]) for n in
                  [get_next_pos(*start_pos, d) for d,v in enumerate(general_graph.nodes[start_pos]["trans"][start_dir]) if v == 1]]):
             # switch already dead (no dest) or all possible dest are in other active_agents_positions (all busy)
-            for label, edges in general_graph[start_pos].items():  # remove all directions from the graph
+            for label, edges in self.graph.reverse()[start_pos].items():  # remove all directions from the graph
                 for key, edge_data in edges.items():
-                    self._remove_edge_and_transition(self.graph, start_pos, label, key)
+                    self._remove_edge_and_transition(self.graph, label, start_pos, key)
             # trigger deadlock for agent
-            di_graph.update(nodes=[((*start_pos, start_dir), self._encode_dl_node_attributes(dl_steps=0, switch_behind=True))])
+            di_graph.update(nodes=[((*start_pos, start_dir), self._encode_dl_node_attributes(dl_steps=0, first_time_detection=True))])
             return di_graph
 
         elif steps > 1:  # straight road
@@ -468,7 +468,7 @@ class DagObserver(ObservationBuilder):
                                       edges.items() if
                                       edge_data['access_point'][node1] == access_point_from_dir(orientation) and
                                       ((len(ending_points) == 0 and len(
-                                          general_graph.nodes[label]["targets"]) == 0) or label not in ending_points)]
+                                          general_graph.nodes[label]["targets"]) == 0) or (label, key) not in ending_points)]
                     nodes_to_propagate_action += nodes_affected
         for n, k in nodes_to_propagate_action:
             self._remove_edge_and_transition(general_graph, n, node1, k, ending_points)
@@ -547,10 +547,11 @@ class DagObserver(ObservationBuilder):
         ending_points = []  # those are cross cells not switch
         if starvation_flag:
             # with that you suppose that if you end in starvation you can only develop a deadlock
-            dying_positions = self.env.dl_controller.deadlock_positions  # TESTME not ok if no agent are deadlocked and dying_positions is empty
+            dying_positions = self.env.dl_controller.deadlock_positions
+            fake_target = real_target
             # for pos_x, pos_y, exit_point in dying_positions:
             if len(dying_positions) != 0:
-                pos_x, pos_y, exit_point = list(dying_positions)[0]  # ok
+                pos_x, pos_y, exit_point = list(dying_positions)[0]
                 label = (pos_x, pos_y)
                 ending_points.append(label)
                 for orientation in range(4):
@@ -633,8 +634,8 @@ class DagObserver(ObservationBuilder):
         start_info['malfunction'] = agent.malfunction_data['malfunction']
         return start_info
 
-    def _encode_dl_node_attributes(self, dl_steps, switch_behind):
-        return {DagNodeLabel.DEADLOCK: True, "steps_to_deadlock": dl_steps, "switch_behind": switch_behind}
+    def _encode_dl_node_attributes(self, dl_steps, first_time_detection):
+        return {DagNodeLabel.DEADLOCK: True, "steps_to_deadlock": dl_steps, "first_time_detection": first_time_detection}
 
     def _get_start_node(self, graph):
         for start_label, start_node in graph.nodes.items():
