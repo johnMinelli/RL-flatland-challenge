@@ -214,6 +214,8 @@ class DeadlocksGraphController:
 
     def reset(self, info):
         self.deadlocks = [False]*len(self.env.agents)
+        self.starvations = [False]*len(self.env.agents)
+        self.starvations_target = [False]*len(self.env.agents)
         self.deadlock_positions = set()
 
         info["deadlocks"] = {}
