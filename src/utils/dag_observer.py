@@ -546,6 +546,7 @@ class DagObserver(ObservationBuilder):
         # get switches near agent's target and return them with the target itself
         ending_points = []  # those are cross cells not switch
         if starvation_flag:
+            fake_target = real_target
             # with that you suppose that if you end in starvation you can only develop a deadlock
             dying_positions = self.env.dl_controller.deadlock_positions
             fake_target = real_target

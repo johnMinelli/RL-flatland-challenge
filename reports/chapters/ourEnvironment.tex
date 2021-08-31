@@ -1,9 +1,14 @@
 Our flatland environment is based on the base RailEnv class and there we wrapped the main functionalities and ease the interaction from the other classes. In order to parametrize as possible the env details we also used a file yaml \textit{"env$\_$parameters.yml"}.\\
 The main functionalities are:
-\todo{manca il metodo dentro gli utils per la creazione dell'env e la descrizione dei controller}
-%we have implemented some environmental controller to flexibly add and/or remove various features in the train/evaluation phase, preserving the original Flatland’s implementation. Since the controllers are tied to the solving approach they passed from the main as parameters and instantiated inside the Flatland RailEnv class. However our implementation of the two proposed approaches share the same controller since the same features are observed and the main configuration can be tuned just acting on the parameters inside the .yml files.
-
 \begin{itemize}
+\item \textbf{init}: in this method the parameters of the environment are passed to initialize the various controllers. We have implemented some environmental controller to flexibly add and/or remove various features in the train/evaluation phase, preserving the original Flatland’s implementation. Since the controllers are tied to the solving approach they passed from the main as parameters and instantiated inside the Flatland RailEnv class. However our implementation of the two proposed approaches share the same controller since the same features are observed and the main configuration can be tuned just acting on the parameters inside the .yml files.
+Our controller:
+\begin{itemize}
+	\item \textbf{NormalizerController}: this controller serves to normalize the observation, there is two implementation one for tree and one for graph. The implementation is chosen through a parameters where it is specified the method to call. This implementation is more helpfull because it is very modular and indipendent of the other configuration. It will be explained in detail in the \autoref{chap:normalization}.
+	\item \textbf{DeadlockController}: this controller severs to individuate the deadlock state of agent and report them to the enviroment. There are two implementation one general and one for graph observation. It will be explained in detail in the \hyperref[sec:deadlockController]{3.5}.
+	\item \textbf{StatisticsController}: this controller severs to calculate the metrics that will pass to wandb to anilizate varius run to arrive an analyses of our implementation soluctions. It will be explained in detail in the \hyperref[sec:metrics]{3.2} and \hyperref[sec:evaluation]{3.3}.
+\end{itemize}
+\item \textbf{create\_rail\_env}: in this method, the map, predictor and observation are initializated through a parameters that they read and set in the main class. The map is created randomly but having characteristics to follow that are set in $env\_parameters$. After this step all variable are passed on costructor method for create our enviroment, the parameter that we use to configurate the enviroment are descripted in \hyperref[sec:ourParameters]{3.1}.
 \item \textbf{step}: in this method, there were calculated observations, standard rewards, standard info and the list of agents which have finished their run, through super method of the environment.
 Then, our custom actions are performed on the dictonaries before the return of the step results.\ Additional information are extracted from he observations and encoded in the information dictionary with method \textit{extract\_info} since they will be necessary for the following steps. The deadlock situation is updated with the aid of the deadlock controller, and rewards and statistics are computed properly. At the end a normalization procedure for the observations is applied in order to feed the training model.
 \item \textbf{extract info}: it takes as parameters the information and observation, which are used to fill the following variables included in the dictionary as additional information:
@@ -18,6 +23,7 @@ Then, our custom actions are performed on the dictonaries before the return of t
 \item \textbf{render env}: in this method through a parameter, it is launched the graphic interface.
 \end{itemize}
 \section{Parameters}
+\label{sec:ourParameters}
 There is a file \texttt{env\_parameters.yml} that contains all configurations of our environments. In details it contains three type of environments defined by us for testing purpose:
 \begin{enumerate}
 	\item [1.] Small size:
@@ -77,6 +83,7 @@ In addition there are a some parameters to calculate the rewards:
 	\end{itemize}
 \end{enumerate}
 \section{Metrics}
+\label{sec:metrics}
 The metrics are fundamental to understand how enviroment and policy are behaving so  We implemented a \texttt{StatisticsController} to compute and print the metrics and evaluate the algorithm’s performance:
 \begin{itemize}
 	\item \textbf{normalized\_score}: is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainable, computed as the product between the number of agents and the maximum number of steps in the episode.
@@ -96,21 +103,19 @@ The metrics are fundamental to understand how enviroment and policy are behaving
 The \texttt{StatisticsController} also computes the probability distribution of the actions taken during each episode.
 We integrated our solution with \textbf{TensorBoard} in order to be able to analyze the evolution of both training data (losses, expected values, memory sizes, exploration rates \ldots) and performance metrics.
 \section{Evaluation and platforms}
+\label{sec:evaluation}
 To run the experiments we did have at our disposal our personal computers which are enought powerful to not represent a limitation for smaller environments therefore  we didn't faced a lot of difficulties for the initial debug of the code and the firsts tests for the decision of the metrics. In bigger instances primary focused to the evaluation of the models we instead experienced a slowdown in the running times. We observed that the major bottlenecks are in the Flatland code for which it is necessary to have more CPU power.\\
 Due to this reasons we decided to limit the complexity of the experiments especially in terms of number of agent and map size, considering just the following environments with test sessions of 1000 iterations each.
 \begin{enumerate}
 	\item Medium size: 60x60
 	\item Big size: 80x80
 \end{enumerate}
-\todo{fai bene l'internal link alla sezione...}
-\textit{(detailed features of each one can be found in \hyperref[sec:ourParameters])}.\\
+\textit{(detailed features of each one can be found in \hyperref[sec:ourParameters]{3.1})}.\\
 In order to evaluate different algorithms, combinations of hyperparameters and strategies we looked for a tool able to store, track, share and effectively compare different runs without the worry of continuously make notes on external files of our progresses.
 We found such a tool in \href{https://www.wandb.com/}{Weights \& Biases}.
 Subscribing to a free account provides an effective and very intuitive way of monitoring a Deep Learning project.\\
 Weights \& Biases is used by OpenAI and other leading companies since it's wide range of supported platforms. Indeed we were able to integrate it rapidly in the project, connecting it to the TensorBoard logging and immediately start testing.\\
 Additionally to a rich customizable interface to plot graphs it also provides hyperparameter tuning, called Sweep.
-\todo{we have to add more about the seep?}
-\todo{review initial here}
 \section{Action}
 The Flatland environment provides for each agent five different actions (already described in detail in \hyperref[sec:envActions]{2.3}).\\
 In the implementation phase we reasoned about the utility of each one in order to possibly reduce the action space that our RL model has to learn.
@@ -123,6 +128,7 @@ Following our reasoning we evaluate the action only before or on the switch and 
 \item \textbf{"decision\_required" = False}: the action is decided by the environment. Assigning the constant \texttt{RailEnvActions.MOVE\_FORWARD} the agent will continue on the road following the direction of the road.
 \end{itemize}
 \section{Deadlock Controller}
+\label{sec:deadlockController}
 In Flatland, deadlocks are a truly catastrophic event because the agents involved can no longer move and can represent an obstacle for the others during the rest of the episode. Deadlocks detection is an additional riddle in the Flatland for which there is no standard algorithm. We have tried to implement a detection system as efficient as possible able to identify failures and conflict states with the minimum overhead. That was possible especially with the aid of a custom observation. Overall, we have implented two type of detection systems based on the type of observation used.
 \begin{itemize}
 	\item \textbf{DeadlocksGraphController}: this controller is used in combination of a graph structured observation. It make use of the observations of each agent controlling the presence of labels in the in the graph nodes, for instance the observation of an agent in a deadlock situation will contain a node marked with the \texttt{DEADLOCK} label.\\ Remarking that for this type of observation each node represent a switch in the rail, we decided to mark a node as deadlock when an agent taking a road, with his direction of movement, will surely face another agent in opposite direction. This type of observation however is irremediable and can develop only in a full deadlock status when both agents in the road are one next to the other. That data can be found in the same labeled node under the name of \textit{steps\_to\_deadlock}. When that value is 0, coherently, the list maintained to register the deadlock status of the agents is updated, and these agents won't be considered anymore in the next steps.\\
@@ -158,10 +164,9 @@ Crafting rewards is not easy because as a consequence we could get trapped in th
 Indeed, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong.\\
 Taking all of that in consideration, in our implementation we added a method in the env class called \textbf{compute$\_$rewards} to flexibly choose during the training phase whether to use the rewards shaped or the standard Flatland's reward system.\\
 In the first case it is possible to choose how to shape the rewards by setting the following parameters:
-\todo{la tre non l'ho capita}
 \begin{itemize}
 	\item\textbf{$deadlock\_penalty$}: to penalize agents in deadlocks by value of variable.
 	\item \textbf{$starvation\_penalty$}: to penalize agents in starvation by value of variable.
-	\item \textbf{$reduce\_distance\_penalty$}: to reward agents who are moving towards their target by multiplying the value assigned to the reward associated with the agent calculated in the previous step.
+	\item \textbf{$reduce\_distance\_penalty$}: to reward agents who are moving towards their target by multiplying the value assigned to the reward associated with the agent calculated in the step.
 	\item \textbf{$goal\_reward$}: to reward agents who have arrived at their destination by assigning them a positive reward.
 \end{itemize}

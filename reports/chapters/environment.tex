@@ -55,12 +55,11 @@ The rewards are based on the following values:
 \item \textit{stop penalty}: is currently set to 0, penalty for stopping a moving agent
 \item \textit{start penalty}: is currently set to 0, penalty for starting a stopped agent
 \end{itemize}
-\todo{riguarda da qui in giù}
 The full step penalty is computed as the product between \textit{step penalty} and agent speed data (\textit{i.e.} the \textit{speed} variable).\
 There are different rewards for different situations:
 \begin{itemize}
 \item agents that are in status \texttt{DONE} or \texttt{DONE\_REMOVED} have zero reward.
-\item all agents that have finished in this episode (checked at the end of the step) or previously (checked at the beginning of the step), have reward equal to the global reward (when in step all agents have reached their target)
+\item all agents that have finished in this episode (checked at the end of the step), have reward equal to the global reward (when in step all agents have reached their target)
 
 \item full step penalty is assigned when an agent is in state \texttt{READY\_TO\_DEPART} and in the current turn moves or stay there (2th step agent case), or when is in malfunction.
 \item full step penalty plus the other penalties (invalid action penalty, stop penalty and start penalty) when the agent is finishing actions or start new ones. Currently the other penalties are all set to zero.

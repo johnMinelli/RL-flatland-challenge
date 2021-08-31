@@ -99,7 +99,10 @@ class StatisticsController:
                 'normalized_score': self.normalized_score,
                 'normalized_score_history': self.normalized_score_history,
                 'completion_history': self.completion_history,
-                'completion': self.completion}
+                'completion': self.completion,
+                'deadlocks_percentage': self.deadlocks_percentage,
+                'accumulated_deadlocks': self.accumulated_deadlocks
+                }
 
     def _format_action_prob(self):
         """

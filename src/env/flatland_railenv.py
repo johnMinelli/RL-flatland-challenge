@@ -139,7 +139,7 @@ class FlatlandRailEnv(RailEnv):
         for i_agent, agent in enumerate(self.agents):
             if dones[i_agent]:
                 rewards[i_agent] = self.params.rewards.goal_reward
-            elif info["deadlocks"][i_agent]:
+            elif info["deadlocks"][i_agent] and not self.dl_controller.starvations_target[i_agent]:
                 rewards[i_agent] = self.params.rewards.deadlock_penalty
             elif info["starvations"][i_agent]:
                 rewards[i_agent] = self.params.rewards.starvation_penalty

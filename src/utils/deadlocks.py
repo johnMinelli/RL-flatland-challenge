@@ -202,6 +202,9 @@ class DeadlocksGraphController:
                         elif node['steps_to_deadlock'] == 0:
                             self.deadlock_positions.add(opposite_label)
                             self.deadlocks[handle] = True
+                            info["deadlocks"][handle] = True
+                            if self.starvations[handle] :
+                                self.starvations_target[handle] = True
                         break
                     elif dag_observer.DagNodeLabel.STARVATION in node:
                         self.starvations[handle] = True

@@ -54,7 +54,7 @@ training:
   # Checkpoint interval (how often to evaluate and save the model)
   checkpoints: 500
   # Number of episodes to run
-  episodes: 7500
+  episodes: 1500
   # Path to the model file to load
   model: ""
   # Log path

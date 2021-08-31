@@ -64,6 +64,8 @@ class TBLogger:
         self.writer.add_scalar("metrics/accumulated_score", np.mean(env.stats['normalized_score_history']), step)
         self.writer.add_scalar("metrics/completion", env.stats['completion'], step)
         self.writer.add_scalar("metrics/accumulated_completion", np.mean(env.stats['completion_history']), step)
+        self.writer.add_scalar("metrics/deadlocks_percentage", env.stats['deadlocks_percentage'], step)
+        self.writer.add_scalar("metrics/accumulated_deadlocks", np.mean(env.stats['accumulated_deadlocks']), step)
         self.writer.add_histogram("actions/distribution", np.array(env.stats['action_count']), step)
         self.writer.add_scalar("actions/nothing", env.stats['action_count'][RailEnvActions.DO_NOTHING], step)
         self.writer.add_scalar("actions/left", env.stats['action_count'][RailEnvActions.MOVE_LEFT], step)
