@@ -65,7 +65,7 @@ class StatisticsController:
 
     def _end_episode(self, info):
 
-        self.normalized_score = self.score / (self.max_steps * self.num_agents)
+        self.normalized_score = self.score / (self.step * self.num_agents)
         self.normalized_score_history.append(self.normalized_score)
         self.tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                                   for a in range(self.num_agents))
