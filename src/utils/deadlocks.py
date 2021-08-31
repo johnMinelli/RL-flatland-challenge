@@ -186,8 +186,8 @@ class DeadlocksGraphController:
         info["deadlocks"] = {}
         info["starvations"] = {}
         for handle in range(self.env.get_num_agents()):
-            info["deadlocks"][handle] = False
-            info["starvations"][handle] = False
+            info["deadlocks"][handle] = self.deadlocks[handle]
+            info["starvations"][handle] = self.starvations[handle]
             graph = obs[handle]
             if not graph is None:
                 for label, node in graph.nodes.items():
