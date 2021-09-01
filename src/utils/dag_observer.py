@@ -86,7 +86,8 @@ class DagObserver(ObservationBuilder):
                 has_switch_behind = True
                 node_behind = prev_start_node
 
-        while not is_switch(self.env.rail, *start_pos, start_dir) if not deadlock_flag else any([ is_switch(self.env.rail, *start_pos, d) for d in range(4) if d != start_dir]):
+        while (not deadlock_flag and not is_switch(self.env.rail, *start_pos, start_dir)) or \
+            (deadlock_flag and (((*start_pos, opposite_dir(start_dir)) in active_agents_position) or (not any([ is_switch(self.env.rail, *start_pos, d) for d in range(4)])))):
             # update counters and flags
             if start_pos == target: target_flag = True; break
             if (not deadlock_flag) and (*start_pos, start_dir) in active_agents_position and (not start_pos in dead_agents_position):
@@ -138,26 +139,36 @@ class DagObserver(ObservationBuilder):
             # get switches near agent's target in DiGraph for shortest_path computation
             starvation_flag = self.env.dl_controller.starvations[handle]
             target, ending_points = self._build_target_in_directed_graph(general_graph, di_graph, target, starvation_flag)
-            # if you are in the switch pre target
+
             if start_pos in ending_points and ((*start_pos, start_dir), target) in di_graph.edges:
+                # if you are in the switch pre target
                 cost = steps + general_graph.nodes[start_pos]["targets"][handle][0]
                 di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": cost, "shortest_path": [start_pos]})])
             else:
-                if start_pos in ending_points:
-                    #TESTME probably never ever called
-                    ending_points.remove(start_pos)
-                # -explore target-to-agent without other agents
+                if start_pos in ending_points:  #TESTME probably never ever called
+                    ending_points.remove(start_pos)  # you are on a ending point but no transition is available
+
+                # STEP1 - explore target-to-agent without other agents
                 shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
                 if shortest_info is None:
                     di_graph.update(nodes=[((*start_pos, start_dir), {DagNodeLabel.STARVATION: True})])
-                    # no path available for target: send him to a deadlock edge
+                    # no path available for target: it's a starvation, send him to a deadlock edge
                     if (not np.array_equal(ending_points, [(x,y) for x,y,_ in self.env.dl_controller.deadlock_positions])) and len(self.env.dl_controller.deadlock_positions) != 0:
-                        target, ending_points = self._build_target_in_directed_graph(general_graph, di_graph, None, starvation_flag=True)  # here a starvation case
+                        # get switches near fake_target for shortest_path computation towards deadlock
+                        target, ending_points = self._build_target_in_directed_graph(general_graph, di_graph, None, starvation_flag=True)  # will create a second target node
+                        if start_pos in ending_points and ((*start_pos, start_dir), target) in di_graph.edges:
+                            # if you are in the switch pre target
+                            cost = steps + 1
+                            di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": cost, "shortest_path": [start_pos]})])
+                            observation = di_graph; self.prev_observations[handle] = observation; return observation  # shorthand for breaking the other computation steps
+                        elif start_pos in ending_points:
+                            ending_points.remove(start_pos)
+
                         shortest_info = self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target)
                 if shortest_info is None: shortest_info = (0,[])
                 di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": shortest_info[0], "shortest_path": shortest_info[1]})])
 
-                # -explore path target-to-agent other agents
+                # STEP2 - explore path target-to-agent other agents
                 non_blocked_agents = [not d if h != handle else False for h, d in enumerate(self.env.dl_controller.deadlocks)]
                 if np.any(non_blocked_agents):
                     for a in np.array(self.env.agents)[non_blocked_agents]:
@@ -175,7 +186,7 @@ class DagObserver(ObservationBuilder):
                             [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, access_point_from_dir(dir), ending_points) for destination_node in set(t) if destination_node != (0, 0)]
                     self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target,2)
 
-                # add attributes to nodes based on conflicts
+                # STEP3 - add attributes to nodes based on conflicts
                 agent_ranking_pos = self.prioritized_agents.index(handle)
                 for matching_handle in self.prioritized_agents[:agent_ranking_pos]:
                     # find conflict nodes: common nodes between the obs DiGraph of the agents (compare only x, y)
@@ -341,10 +352,12 @@ class DagObserver(ObservationBuilder):
                     if (current_node, current_orientation, next_node) not in invalid_transitions:
                         invalid_transitions.append((current_node, current_orientation, next_node))
                     elif (current_node, current_orientation, next_node) == quit:
-                        quit = True; break
-                        #TESTME test if it still happen
+                        quit = True; break  #TESTME test if it still happen
                     else: quit = (current_node, current_orientation, next_node)
                     # this case you must have at least a transition possible from your orientation
+                    # if you don't is because the the invalid_transition clone and you are using the comeback edge
+                    if np.array_equal(node_direct_destinations, [(0, 0), (0, 0), (0, 0), (0, 0)]): break
+
                     unreachable_node = next_node
                     exploration_node = None
                     next_node = None
@@ -387,12 +400,12 @@ class DagObserver(ObservationBuilder):
                 cost = exploration_graph.get_edge_data(current_node, next_node, current_exit_point)["weight"]
                 directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
                                         **{'weight': cost, 'exit_point': current_exit_point})
-                _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, next_node, next_orientation)
+                _, path = self._get_shorthest_path(exploration_graph, self.invalid_transitions, ending_points, next_node, next_orientation)
                 if path is None: break
                 current_node = None
                 current_orientation = next_orientation
                 i = 0
-            shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, start_pos, start_dir)
+            shortest_cost, path = self._get_shorthest_path(exploration_graph, self.invalid_transitions, ending_points, start_pos, start_dir)
             if path is None:
                 return None
             if quit == True: break
@@ -477,13 +490,13 @@ class DagObserver(ObservationBuilder):
         # shallow copy of the graph: don't modify node attributes
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
-        for current, orientation, next in invalid_transitions[::-1]:
+        for current, orientation, next in self.invalid_transitions[::-1]:
             previous = [label[0:2] for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data['access_point'][current] == opposite_dir(orientation)]
             cloned_node = (*current, 1)
             if cloned_node not in reversed_graph.nodes:  # since you can have multiple invalid_trans on the same current
                 reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
                 for end, data in reversed_graph[current].items():
-                    if not end[0:2] in previous and (current,orientation,end[0:2]) not in invalid_transitions:
+                    if not end[0:2] in previous and (current,orientation,end[0:2]) not in self.invalid_transitions:
                         [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
             else:
                 for end, data in deepcopy(reversed_graph[cloned_node].items()):

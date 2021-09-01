@@ -154,9 +154,16 @@ class FlatlandRailEnv(RailEnv):
     def get_rail_env(self):
         return super()
 
-def showdbg(env):
-    env.env_renderer = RenderTool(env, show_debug=True, gl="PGL")
+def showdbg(env, svg=False):
+    env.env_renderer = RenderTool(env, show_debug=True, screen_width=1920, screen_height=1080, gl="PILSVG")
     env.env_renderer.set_new_rail()
+    env.env_renderer.render_env()
+    if svg:
+        from matplotlib import pyplot as plt
+        image = env.env_renderer.get_image()
+        plt.imshow(image)
+        plt.show()
+        return None
     return env.env_renderer.render_env(
         show=True,
         frames=True,
