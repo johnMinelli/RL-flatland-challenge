@@ -400,12 +400,12 @@ class DagObserver(ObservationBuilder):
                 cost = exploration_graph.get_edge_data(current_node, next_node, current_exit_point)["weight"]
                 directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
                                         **{'weight': cost, 'exit_point': current_exit_point})
-                _, path = self._get_shorthest_path(exploration_graph, self.invalid_transitions, ending_points, next_node, next_orientation)
+                _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, next_node, next_orientation)
                 if path is None: break
                 current_node = None
                 current_orientation = next_orientation
                 i = 0
-            shortest_cost, path = self._get_shorthest_path(exploration_graph, self.invalid_transitions, ending_points, start_pos, start_dir)
+            shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, start_pos, start_dir)
             if path is None:
                 return None
             if quit == True: break
@@ -490,13 +490,13 @@ class DagObserver(ObservationBuilder):
         # shallow copy of the graph: don't modify node attributes
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
-        for current, orientation, next in self.invalid_transitions[::-1]:
+        for current, orientation, next in invalid_transitions[::-1]:
             previous = [label[0:2] for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data['access_point'][current] == opposite_dir(orientation)]
             cloned_node = (*current, 1)
             if cloned_node not in reversed_graph.nodes:  # since you can have multiple invalid_trans on the same current
                 reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
                 for end, data in reversed_graph[current].items():
-                    if not end[0:2] in previous and (current,orientation,end[0:2]) not in self.invalid_transitions:
+                    if not end[0:2] in previous and (current,orientation,end[0:2]) not in invalid_transitions:
                         [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
             else:
                 for end, data in deepcopy(reversed_graph[cloned_node].items()):
