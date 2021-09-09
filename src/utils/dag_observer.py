@@ -34,6 +34,7 @@ class DagObserver(ObservationBuilder):
         self.graph = None
         self.observations = dict()
         self.prev_observations = dict()
+        self.invalid_transitions = []
         self.safety_flag = True
 
     def set_env(self, env: FlatlandRailEnv):
@@ -43,6 +44,8 @@ class DagObserver(ObservationBuilder):
 
     def reset(self):
         self._init_graph()
+
+        self.invalid_transitions = []
         if self.predictor is not None:
             self.predictor.reset(self.graph)
 
@@ -78,13 +81,12 @@ class DagObserver(ObservationBuilder):
         start_x, start_y, start_dir = get_agent_position(self.env.agents[handle], dir=True)  # (x, y, d)
         start_pos = (start_x, start_y)
         target = self.env.agents[handle].target[::-1]  # (x,y)
-        node_behind = get_next_pos(*start_pos, exit_point=access_point_from_dir(start_dir))
+        node_behind = (*get_next_pos(*start_pos, exit_point=access_point_from_dir(start_dir))[0:2], start_dir)  # rev(rev(->)) = access_point_from_dir(access_point_from_dir(start_dir))
         has_switch_behind = False
         if handle in self.prev_observations:
             prev_start_node = self._get_start_node(self.prev_observations[handle])[0]
             if node_behind[0:2] == prev_start_node[0:2]:
                 has_switch_behind = True
-                node_behind = prev_start_node
 
         while (not deadlock_flag and not is_switch(self.env.rail, *start_pos, start_dir)) or \
             (deadlock_flag and (((*start_pos, opposite_dir(start_dir)) in active_agents_position) or (not any([ is_switch(self.env.rail, *start_pos, d) for d in range(4)])))):
@@ -155,7 +157,7 @@ class DagObserver(ObservationBuilder):
                     # no path available for target: it's a starvation, send him to a deadlock edge
                     if (not np.array_equal(ending_points, [(x,y) for x,y,_ in self.env.dl_controller.deadlock_positions])) and len(self.env.dl_controller.deadlock_positions) != 0:
                         # get switches near fake_target for shortest_path computation towards deadlock
-                        target, ending_points = self._build_target_in_directed_graph(general_graph, di_graph, None, starvation_flag=True)  # will create a second target node
+                        target, ending_points = self._build_target_in_directed_graph(general_graph, di_graph, target, starvation_flag=True)  # will create a second target node
                         if start_pos in ending_points and ((*start_pos, start_dir), target) in di_graph.edges:
                             # if you are in the switch pre target
                             cost = steps + 1
@@ -277,8 +279,9 @@ class DagObserver(ObservationBuilder):
         # print("DAG:", nx.to_dict_of_dicts(self.graph))
 
     def _build_paths_in_directed_graph(self, exploration_graph, directed_graph, start_pos, start_dir, ending_points, target, ignore=1):
-        quit = None; invalid_transitions = []
-        shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, start_pos, start_dir)
+        quit = None;
+        invalid_transitions = self.invalid_transitions
+        shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, start_pos, ending_points, start_dir)
         if path is None: return None
         while not self._is_path_in_graph(directed_graph, path, (*start_pos, start_dir), target):
             current_node = None
@@ -289,13 +292,14 @@ class DagObserver(ObservationBuilder):
                 if current_node is None: current_node = next_node; i += 1; continue
                 node_direct_destinations = exploration_graph.nodes[current_node]["trans_node"][current_orientation]
 
+                indices = []
+                destinations = {}
                 if next_node in node_direct_destinations:
-                    # transition is valid: continue on the path
                     indices = [i for i, n in enumerate(node_direct_destinations) if n == next_node and ((current_node), i, next_node) not in invalid_transitions]
-                    destinations = {}
+                if len(indices) > 0:  # transition is valid: continue on the path
                     for current_exit_point in indices:
                         next_orientation = dir_from_access_point(exploration_graph.get_edge_data(current_node, next_node, current_exit_point)['access_point'][next_node])
-                        cost, destination, dead_end_flag, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
+                        steps, cost, destination, dead_end_flag, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
                                                                                        current_node, current_orientation,
                                                                                        next_node, next_orientation)
                         if ending_point_flag: destination = target
@@ -307,8 +311,8 @@ class DagObserver(ObservationBuilder):
 
                     if ending_point_flag: break
                     for node_destination, orientations_destination in destinations.items():
-                        if len(orientations_destination)>1:
-                            #unify the transitions for the multiple (both) orientations
+                        if len(orientations_destination) > 1:
+                            # unify the transitions for the multiple (both) orientations
                             new_attr = exploration_graph.nodes[node_destination]
                             all_transitions_destinations = new_attr["trans_node"]
                             all_transitions = new_attr["trans"]
@@ -326,9 +330,9 @@ class DagObserver(ObservationBuilder):
                     # update iterators and continue
                     current_node = list(destinations.keys())[0]
                     current_orientation = destinations[current_node][0]
-                    try:  i = i+path[i:].index(current_node)+1
+                    try:  i = i+path[i:i+steps].index(current_node)+1
                     except: # end of path reached and no allowed direction for target found
-                        _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, current_node, current_orientation)
+                        _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, current_node, ending_points, current_orientation)
                         if path is None: break
                         current_node = None  #orientation already valorized to destination[2]
                         i = 0
@@ -336,7 +340,7 @@ class DagObserver(ObservationBuilder):
                 elif current_node in node_direct_destinations:
                     # immediate dead_end from current_node
                     current_exit_point = node_direct_destinations.index(current_node)
-                    cost, destination, _, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
+                    _, cost, destination, _, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
                                                                            current_node, current_orientation,
                                                                            current_node, opposite_dir(current_orientation))
                     if ending_point_flag: destination = target
@@ -367,7 +371,7 @@ class DagObserver(ObservationBuilder):
                         if unreachable_node in exploration_graph.nodes[current_node]["trans_node"][dir_from_access_point(current_exit_point)]:
                             # transition which eventually with a dead and can take you to the unreachable_node
                             next_orientation = opposite_dir(exploration_graph.get_edge_data(current_node, destination_node, current_exit_point)['access_point'][destination_node])
-                            cost, destination, dead_end_flag, _ = self._update_graph_until_switch(exploration_graph, ending_points,
+                            _, cost, destination, dead_end_flag, _ = self._update_graph_until_switch(exploration_graph, ending_points,
                                                                                                current_node, current_orientation,
                                                                                                destination_node, next_orientation)
                             if dead_end_flag:
@@ -383,7 +387,7 @@ class DagObserver(ObservationBuilder):
                                 # (path resolution) immediate dead_end
                                 directed_graph.add_edge((*current_node, current_orientation),(*destination_node, next_orientation),
                                                         **{'weight': cost, 'exit_point': current_exit_point})
-                                dead_end_cost, dead_end_destination, _, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
+                                _, dead_end_cost, dead_end_destination, _, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
                                                                                                          destination_node, next_orientation,
                                                                                                          destination_node, opposite_dir(next_orientation))
                                 if ending_point_flag: dead_end_destination = target  # then continue and maybe find a better path
@@ -400,12 +404,12 @@ class DagObserver(ObservationBuilder):
                 cost = exploration_graph.get_edge_data(current_node, next_node, current_exit_point)["weight"]
                 directed_graph.add_edge((*current_node, current_orientation), (*next_node, next_orientation),
                                         **{'weight': cost, 'exit_point': current_exit_point})
-                _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, next_node, next_orientation)
+                _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, next_node, ending_points, next_orientation)
                 if path is None: break
                 current_node = None
                 current_orientation = next_orientation
                 i = 0
-            shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, ending_points, start_pos, start_dir)
+            shortest_cost, path = self._get_shorthest_path(exploration_graph, invalid_transitions, start_pos, ending_points, start_dir)
             if path is None:
                 return None
             if quit == True: break
@@ -426,7 +430,9 @@ class DagObserver(ObservationBuilder):
         target_found = False
         prev_node = current_node
         prev_orientation = current_orientation
+        steps = 1
         while not is_switch(self.env.rail, *next_node, next_orientation):
+            steps += 1
             # if ending_point found, stop
             if next_node in ending_points: target_found = True; break
             next_node_direct_destinations = general_graph.nodes[next_node]["trans_node"][next_orientation]
@@ -457,7 +463,7 @@ class DagObserver(ObservationBuilder):
             if orientiations[start_node_exit_point] == prev_node:
                 orientiations[start_node_exit_point] = next_node
         general_graph.update(nodes=[(current_node, new_attr)])
-        return cost, (*next_node, next_orientation), dead_end_found, target_found
+        return steps, cost, (*next_node, next_orientation), dead_end_found, target_found
 
     def _remove_edge_and_transition(self, general_graph, node1, node2, edge_key, ending_points=[]):
         if not self.safety_flag:
@@ -481,32 +487,42 @@ class DagObserver(ObservationBuilder):
                                       edges.items() if
                                       edge_data['access_point'][node1] == access_point_from_dir(orientation) and
                                       ((len(ending_points) == 0 and len(
-                                          general_graph.nodes[label]["targets"]) == 0) or (label, key) not in ending_points)]
+                                          general_graph.nodes[label]["targets"]) == 0) or (*label, key) not in ending_points)]
                     nodes_to_propagate_action += nodes_affected
         for n, k in nodes_to_propagate_action:
             self._remove_edge_and_transition(general_graph, n, node1, k, ending_points)
 
-    def _get_shorthest_path(self, graph, invalid_transitions, sources, target, allowed_target_dir):  # TODO graph direct
+    def _get_shorthest_path_rev(self, graph, invalid_transitions, sources, target, allowed_target_dir):
         # shallow copy of the graph: don't modify node attributes
         general_graph = graph.copy()
         reversed_graph = general_graph.reverse()
+        # next and next clones -> cloned -X-> prev , -> all the others
+        # next and next clones -X-> current
         for current, orientation, next in invalid_transitions[::-1]:
             previous = [label[0:2] for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data['access_point'][current] == opposite_dir(orientation)]
-            cloned_node = (*current, 1)
-            if cloned_node not in reversed_graph.nodes:  # since you can have multiple invalid_trans on the same current
-                reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
-                for end, data in reversed_graph[current].items():
-                    if not end[0:2] in previous and (current,orientation,end[0:2]) not in invalid_transitions:
-                        [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
-            else:
-                for end, data in deepcopy(reversed_graph[cloned_node].items()):
-                    if end[0:2] in previous:
-                        edge_set = deepcopy(data.items())
-                        [reversed_graph.remove_edge(cloned_node, end, key=key) for key, edge_data in edge_set]
+            cloned_node = (*current, orientation)
+            # connect the cloned to the possible end nodes: not the previous
+            # if cloned_node not in reversed_graph.nodes:  # since you can have multiple invalid_trans on the same current
+            reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
+            for end, data in reversed_graph[current].items():
+                if (end[0:2] not in previous) and (current != end[0:2]) and (end[0:2],orientation,current) not in invalid_transitions and \
+                        any([bool(reversed_graph.nodes[current]["trans"][dir_from_access_point(access)][access_point_from_dir(orientation)]) for access in [edge_data["access_point"][current] for key, edge_data in data.items()]]): # and gli archi entranti (secondo l'entrata che hanno) hanno accesso all'uscita opposite_dir(orientation)
+                    [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
+            # else:
+            #     for end, data in deepcopy(reversed_graph[cloned_node].items()):
+            #         if end[0:2] in previous:
+            #             edge_set = deepcopy(data.items())
+            #             [reversed_graph.remove_edge(cloned_node, end, key=key) for key, edge_data in edge_set]
+
             for end, data in deepcopy(general_graph[current].items()):
                 if end[0:2] == next[0:2]:
-                    [reversed_graph.add_edge(next, cloned_node, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
+                    # connect next to cloned, but also the next's clones to cloned
                     edge_set = deepcopy(data.items())
+                    for key, edge_data in edge_set:
+                        reversed_graph.add_edge(next, cloned_node, **{**edge_data, 'key': key})
+                        [reversed_graph.add_edge((*next, clone), cloned_node, **{**edge_data, 'key': key}) for clone in range(4) if (*next, clone) in reversed_graph.nodes and (cloned_node[0:2], cloned_node[2], next) not in invalid_transitions]
+                    edge_set = deepcopy(data.items())
+                    # negate the next to current, but also the next's clones to current
                     for key, edge_data in edge_set:
                         try: reversed_graph.remove_edge(next, current, key=key)
                         except: pass
@@ -535,6 +551,85 @@ class DagObserver(ObservationBuilder):
         if len(valid_paths)!=0:
             paths_costs = [nx.path_weight(reversed_graph, p, "weight") for p in valid_paths]
             minimum_shortest_simple_path = [node[0:2] for node in valid_paths[np.argmin(paths_costs)]][::-1]
+            return min(paths_costs), minimum_shortest_simple_path
+        else: return -1, None
+    
+    def _get_shorthest_path(self, graph, invalid_transitions, source, targets, allowed_source_dir, debug=False, debugs=False):
+        # shallow copy of the graph: don't modify node attributes
+        general_graph = graph.copy()
+        # prev and prev clones -> cloned -X-> next , -> all the others
+        # prev and prev clones -X-> current
+        for current, orientation, next in invalid_transitions[::-1]:
+            previous = set([label for label, edges in general_graph.reverse()[current].items() for key, edge_data in edges.items() if dir_from_access_point(edge_data['access_point'][current]) == orientation])
+            cloned_node = (*current, orientation)
+            # connect the cloned to the possible end nodes: not the next 
+            general_graph.add_node(cloned_node, **general_graph.nodes[current])
+            for end, data in general_graph[current].items():
+                if (end[0:2] != next) and (current != end[0:2]) and (current, orientation, end[0:2]) not in invalid_transitions:
+                    for key, edge_data in data.items():
+                        if len(end) == 2 and (end not in [a for a, o, b in invalid_transitions] or  # it's un-oriented but no rule of invalid transition exist
+                              (*end, dir_from_access_point(edge_data['access_point'][end])) not in general_graph.nodes or  # still to be processed therefore it needs an edge to the un-oriented node. edge existence doesn't imply that i don't have to add the edge
+                              (general_graph.nodes[current]["trans"][orientation][key] and dir_from_access_point(edge_data['access_point'][end]) not in set([o for a, o, b in invalid_transitions if a == end]))):  # the edge used doesn't arrive into an invalid orientation
+                            general_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key})
+                        elif len(end) > 2:
+                            if general_graph.nodes[current]["trans"][orientation][key] and dir_from_access_point(edge_data['access_point'][end[0:2]])==end[2]:
+                                general_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key})
+
+            for prev in previous:
+                for key, edge_data in deepcopy(general_graph[prev][current].items()):
+                    if len(prev) > 2:
+                        general_graph.add_edge(prev[0:2], cloned_node, **{**edge_data, 'key': key})
+                    if dir_from_access_point(edge_data['access_point'][current]) == orientation:
+                        # remove all prev and prev clones to current
+                        try: general_graph.remove_edge(prev, current, key=key)
+                        except: pass
+                        # link prev to cloned
+                        general_graph.add_edge(prev, cloned_node, **{**edge_data, 'key': key})
+                        
+                # questo cloned deve andare a tutti tranne il next (pay attention to no break this rule for other invalid transitions while adding edges) 
+                    # cicla sui prev:
+                    #   vanno collegati a questo cloneed
+                    #   vanno controllati che se sono collegati ad un altro cloned  allora va rimosso l'arco da quel cloned al next
+                    # rimuovi da tutti i prev l'arco verso il current 
+
+        cloned_source = (*source, allowed_source_dir)
+        if cloned_source not in general_graph.nodes:
+            general_graph.add_node(cloned_source, **general_graph.nodes[source])
+            # remove unfeasible directions
+            feasible_destinations = general_graph.nodes[source]["trans_node"][allowed_source_dir]
+            for destination, data in general_graph[source].items():
+                if destination[0:2] in feasible_destinations:
+                    for key, edge_data in data.items():
+                        if len(destination) == 2 and (destination not in [a for a, o, b in invalid_transitions] or  # it's un-oriented but no rule of invalid transition exist
+                              (general_graph.nodes[source]["trans"][allowed_source_dir][key] and dir_from_access_point(edge_data['access_point'][destination]) not in set([o for a, o, b in invalid_transitions if a == destination]))):  # the edge used doesn't arrive into an invalid orientation
+                            general_graph.add_edge(cloned_source, destination, **{**edge_data, 'key': key})
+                        elif len(destination) > 2:
+                            if general_graph.nodes[source]["trans"][allowed_source_dir][key] and dir_from_access_point(edge_data['access_point'][destination[0:2]]) == destination[2]:
+                                general_graph.add_edge(cloned_source, destination, **{**edge_data, 'key': key})
+        source = cloned_source
+
+        # convert to a standard DiGraph using the cheapest edge weight
+        n = (-1,-1); w = 0; edge_set = deepcopy(general_graph.edges.items())
+        for l,a in edge_set:
+            if l[0:2]==n[0:2]:
+                if a["weight"] < w:
+                    w = a["weight"]
+                    general_graph.remove_edge(*n)
+                else: general_graph.remove_edge(*l)
+            else: n=l
+        general_graph = nx.DiGraph(general_graph)
+        valid_paths = []
+        if debugs:
+            return general_graph
+        if debug:
+            self._print_graph(general_graph)
+            return str(nx.to_dict_of_dicts(general_graph))
+        for i, t in enumerate(targets):
+            try: valid_paths.append(nx.shortest_simple_paths(general_graph, source, t).__next__())
+            except: pass
+        if len(valid_paths)!=0:
+            paths_costs = [nx.path_weight(general_graph, p, "weight") for p in valid_paths]
+            minimum_shortest_simple_path = [node[0:2] for node in valid_paths[np.argmin(paths_costs)]]
             return min(paths_costs), minimum_shortest_simple_path
         else: return -1, None
 
@@ -572,7 +667,8 @@ class DagObserver(ObservationBuilder):
                     if self.graph.nodes[label]["trans"][orientation][exit_point] == 1 and is_switch(self.env.rail, *label, orientation):
                         node = (*label, orientation)
                         directed_graph.add_node(node)
-                        fake_target = get_next_pos(*label, exit_point, 1)[0:2]  # add fake target in graph
+                        fake_target = get_next_pos(*label, exit_point, 1)[0:2]
+                        directed_graph.add_node(fake_target)  # add fake target in graph
                         directed_graph.add_edge(node, fake_target, **{'weight': 1, 'exit_point': exit_point})
             return fake_target, ending_points
         else:
