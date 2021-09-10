@@ -63,7 +63,7 @@ class FlatlandRailEnv(RailEnv):
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress
 
-        if all(self.dl_controller.deadlocks[a] or self.dl_controller.starvations[a] or dones[a] for a in range(self.params.n_agents)):
+        if all(self.dl_controller.deadlocks[a] or dones[a] for a in range(self.params.n_agents)):
             stats = self.stats_controller.update(action_dict, rewards, dones, info, True)
         else:
             stats = self.stats_controller.update(action_dict, rewards, dones, info, False)
@@ -142,7 +142,7 @@ class FlatlandRailEnv(RailEnv):
             elif info["deadlocks"][i_agent] and not self.dl_controller.starvations_target[i_agent]:
                 rewards[i_agent] = self.params.rewards.deadlock_penalty
             elif info["starvations"][i_agent]:
-                rewards[i_agent] = self.params.rewards.starvation_penalty
+                rewards[i_agent] = rewards[i_agent] + self.params.rewards.starvation_penalty
             elif i_agent in info["shortest_path"] and i_agent in info["shortest_path_pre"] and \
                     len(info["shortest_path"][i_agent]) < len(info["shortest_path_pre"][i_agent]):
                 rewards[i_agent] = rewards[i_agent] * self.params.rewards.reduce_distance_penalty

@@ -194,10 +194,10 @@ class DeadlocksGraphController:
                     if dag_observer.DagNodeLabel.DEADLOCK in node:
                         opposite_label = (*label[0:2], opposite_dir(label[2]))
                         if node["first_time_detection"]:
-                            info["deadlocks"][handle] = True
                             if node['steps_to_deadlock'] == 0:
                                 try: self.deadlock_positions.remove(opposite_label)
                                 except: pass
+                                info["deadlocks"][handle] = True
                                 self.deadlocks[handle] = True
                         elif node['steps_to_deadlock'] == 0:
                             self.deadlock_positions.add(opposite_label)
