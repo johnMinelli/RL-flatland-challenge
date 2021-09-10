@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import keras
-
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 # local imports
 from src.common.Policy import Policy
 from src.dddqn.model import DQN, DoubleDuelingDQN
@@ -52,6 +52,8 @@ class DQNPolicy(Policy):
         # action selection, where just a single state is used in forward propagation
         self.model.build(input_shape=(None, self.state_size))
         self.target_model.build(input_shape=(None, self.state_size))
+
+
 
     def act(self, state):
         """Returns actions for given state as per current policy (epsilon-greedy).
@@ -123,19 +125,23 @@ class DQNPolicy(Policy):
         q_target = np.copy(q_pred)
 
         for idx, terminal in enumerate(dones):
-            if terminal:
-                q_next[idx] = 0.0 # expected value of rewards in terminal state is 0
+
             q_target[idx, actions[idx]] = rewards[idx] * self.gamma*q_next[idx]
             if self.priority:
                 # update priority of data in replay memory with td error
                 self.memory.update(indexes[idx], tf.math.reduce_sum(abs(q_target[idx] - q_pred[idx])).numpy().astype(np.float32))
 
-        # train on batch trains using a single batch in a single gradient update
-        # and apply importance sampling weights
-        self.model.train_on_batch(states, q_target, sample_weight=weights)
+       # perform gradient descent step and apply importance sampling weight
+
+        #scaler = MinMaxScaler()
+        #states = scaler.fit_transform(states)
+        #q_target = scaler.fit_transform(q_target)
+        scaler = StandardScaler()
+        states = scaler.fit_transform(states, q_target)
+        q_target = scaler.fit_transform(q_target)
 
         if self.t_step % self.update_network_rate == 0:
-            self.update_target_model()
+                self.update_target_model()
 
     def update_target_model(self):
         new_weights = list(map(lambda weight_tensor: self.tau * weight_tensor + (1.0 - self.tau * weight_tensor), self.model.get_weights()))
@@ -159,11 +165,12 @@ class DoubleDuelingDQNPolicy(DQNPolicy):
     def act(self, state):
 
         n = np.random.random()
-
         if n <= self.epsilon:
             return np.random.randint(0, self.action_size)
         else:
+
             # we only use the advantage array for action pick
             actions = self.model.advantage(state.reshape(1, -1))
+
             return np.argmax(actions[0])
 
