@@ -13,10 +13,10 @@ class NormalizerController:
         self.normalizer_params = env_params.normalizer_params
 
     def normalize_observations(self, observations):
+        o = {}
         for agent in observations:
-            if observations[agent]:
-                observations[agent] = self.observation_normalizer(observations[agent], **self.normalizer_params)
-        return observations
+            o[agent] = self.observation_normalizer(observations[agent], **self.normalizer_params) if observations[agent] else None
+        return o
 
 
 class StatisticsController:
@@ -45,7 +45,7 @@ class StatisticsController:
         self.score = 0
         self.step = 0
 
-    def update(self, action_dict, rewards, dones, info, deadlocks):
+    def update(self, action_dict, rewards, dones, info, end_by_deadlock):
         """
         Update some statistics and print at the end of the episode
         """
@@ -60,7 +60,7 @@ class StatisticsController:
         self.score += float(sum(rewards.values())) if "original_rewards" not in info \
             else float(sum(info["original_rewards"].values()))
 
-        if dones["__all__"] or self.step >= self.max_steps or deadlocks:
+        if dones["__all__"] or self.step >= self.max_steps or end_by_deadlock:
             return self._end_episode(info)
 
     def _end_episode(self, info):

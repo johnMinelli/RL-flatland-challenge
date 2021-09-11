@@ -43,7 +43,7 @@ def normalize_observation(observation):
     A = nx.to_numpy_matrix(observation)
     # add identity for self-edges
     A = A + np.eye(A.shape[0])
-    A[A > 0] = 1 # adjacency contains weights which we don't want here
+    A[A > 0] = 1  # adjacency contains weights which we don't want here
 
 
     # normalization by degree matrix

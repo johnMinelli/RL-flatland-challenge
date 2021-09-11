@@ -31,7 +31,7 @@ small_env:
     deadlock_penalty: -10
     starvation_penalty: -0.5
     goal_reward: 10
-    reduce_distance_penalty: 0.5
+    reduce_distance_reward: 0.15
   render: False
   max_state_size: 24
 
@@ -55,7 +55,7 @@ medium_env:
     deadlock_penalty: -10
     starvation_penalty: -0.5
     goal_reward: 10
-    reduce_distance_penalty: 0.5
+    reduce_distance_reward: 0.15
   render: False
   max_state_size: 48
 
@@ -79,7 +79,7 @@ big_env:
     deadlock_penalty: -10
     starvation_penalty: -0.5
     goal_reward: 10
-    reduce_distance_penalty: 0.5
+    reduce_distance_reward: 0.15
   render: False
   max_state_size: 72
 

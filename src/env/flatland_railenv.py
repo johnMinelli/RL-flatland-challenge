@@ -1,4 +1,4 @@
-import numpy as np
+from copy import deepcopy
 from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.utils.rendertools import RenderTool
 
@@ -38,12 +38,12 @@ class FlatlandRailEnv(RailEnv):
         # Reset deadlocks
         info = self.dl_controller.reset(info)
         # Normalization phase
-        obs = self.norm_controller.normalize_observations(obs)
+        norm_obs = self.norm_controller.normalize_observations(obs)
         # Reset statistics
         self.stats_controller.reset()
 
-        self.prev_observations = obs
-        return obs, info
+        self.prev_observations = deepcopy(obs)
+        return norm_obs, info
 
     def step(self, action_dict):
         """
@@ -58,20 +58,18 @@ class FlatlandRailEnv(RailEnv):
         # Deadlocks check
         info = self.dl_controller.check_deadlocks(info, obs)
         # Normalization phase
-        obs = self.norm_controller.normalize_observations(obs)
+        norm_obs = self.norm_controller.normalize_observations(obs)
         # Rewards progress
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress
 
-        if all(self.dl_controller.deadlocks[a] or dones[a] for a in range(self.params.n_agents)):
-            stats = self.stats_controller.update(action_dict, rewards, dones, info, True)
-        else:
-            stats = self.stats_controller.update(action_dict, rewards, dones, info, False)
+        end_episode = all(self.dl_controller.deadlocks[a] or self.dl_controller.starvations[a] or dones[a] for a in range(self.params.n_agents))
+        stats = self.stats_controller.update(action_dict, rewards, dones, info, end_episode)
 
         if stats: self.stats = stats
 
-        self.prev_observations = obs
-        return obs, rewards, dones, info
+        self.prev_observations = deepcopy(obs)
+        return norm_obs, rewards, dones, info
 
     def show_render(self):
         """
@@ -145,7 +143,7 @@ class FlatlandRailEnv(RailEnv):
                 rewards[i_agent] = rewards[i_agent] + self.params.rewards.starvation_penalty
             elif i_agent in info["shortest_path"] and i_agent in info["shortest_path_pre"] and \
                     len(info["shortest_path"][i_agent]) < len(info["shortest_path_pre"][i_agent]):
-                rewards[i_agent] = rewards[i_agent] * self.params.rewards.reduce_distance_penalty
+                rewards[i_agent] = rewards[i_agent] * self.params.rewards.reduce_distance_reward
         return rewards
 
 
