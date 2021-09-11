@@ -139,6 +139,7 @@ class DQNPolicy(Policy):
         scaler = StandardScaler()
         states = scaler.fit_transform(states, q_target)
         q_target = scaler.fit_transform(q_target)
+        self.model.train_on_batch(states, q_target, sample_weight=weights)
 
         if self.t_step % self.update_network_rate == 0:
                 self.update_target_model()
