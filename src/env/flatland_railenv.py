@@ -63,7 +63,7 @@ class FlatlandRailEnv(RailEnv):
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress
 
-        if all(self.dl_controller.deadlocks[a] or dones[a] for a in range(self.params.n_agents)):
+        if all(self.dl_controller.deadlocks[a] or  self.dl_controller.starvations[a] or dones[a] for a in range(self.params.n_agents)):
             stats = self.stats_controller.update(action_dict, rewards, dones, info, True)
         else:
             stats = self.stats_controller.update(action_dict, rewards, dones, info, False)
