@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # ============== Choose implementation ==============
     # observer, normalizer, predictor, dl controller
     # ===================================================
-    env = p_env.small_env
+    env = p_env.medium_env
 
     wandb_config = {**vars(env), **vars(t_env)}
 

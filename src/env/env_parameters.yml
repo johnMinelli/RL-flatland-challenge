@@ -82,5 +82,3 @@ big_env:
     reduce_distance_penalty: 0.5
   render: False
   max_state_size: 72
-
-env: "small" # values are [small, medium, big]

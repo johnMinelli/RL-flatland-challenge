@@ -12,10 +12,10 @@ class NormalizerController:
         self.observation_normalizer = env_params.observation_normalizer
         self.normalizer_params = env_params.normalizer_params
 
-    def normalize_observations(self, observations):
+    def normalize_observations(self, observations, max_state_size):
         for agent in observations:
             if observations[agent]:
-                observations[agent] = self.observation_normalizer(observations[agent], **self.normalizer_params)
+                observations[agent] = self.observation_normalizer(observations[agent], max_state_size, **self.normalizer_params)
         return observations
 
 

@@ -12,26 +12,34 @@ from src.dddqn.model import GCN
 def get_node_types(nodes):
     attrs = nodes._nodes
     node_types = []
-    for label, v in attrs.items():
+
+    for index, (label, v) in enumerate(attrs.items()):
+
+        single_node_types = []
+
         if DagNodeLabel.START in v:
-            node_types.append('start')
-        elif DagNodeLabel.TARGET in v:
-            node_types.append('target')
-        elif DagNodeLabel.DEADLOCK in v:
-            node_types.append('deadlock')
-        elif DagNodeLabel.STARVATION in v:
-            node_types.append('starvation')
-        elif DagNodeLabel.CONFLICT in v:
-            node_types.append('conflict')
-        else:
-            node_types.append('other')
+            single_node_types.append('start')
+        if DagNodeLabel.TARGET in v:
+            single_node_types.append('target')
+        if DagNodeLabel.DEADLOCK in v:
+            single_node_types.append('deadlock')
+        if DagNodeLabel.STARVATION in v:
+            single_node_types.append('starvation')
+        if DagNodeLabel.CONFLICT in v:
+            single_node_types.append('conflict')
+
+        if not len(single_node_types):
+            single_node_types.append('other')
+
+        node_types.append('-'.join(single_node_types))
+
 
     ct = ColumnTransformer([('one_hot_encoder', OneHotEncoder(categories='auto', sparse=False), [0])],  remainder='passthrough')
-    encoded_node_types = ct.fit_transform(np.array(node_types).reshape(-1,1))
+    encoded_node_types = ct.fit_transform(np.array(node_types, dtype=object).reshape(-1,1))
 
     return encoded_node_types
 
-def normalize_observation(observation):
+def normalize_observation(observation, max_state_size):
     """
     This function normalizes the observation used by the RL algorithm
     """
@@ -49,6 +57,7 @@ def normalize_observation(observation):
     # normalization by degree matrix
 
     nodes = observation.nodes
+    n_nodes = observation.number_of_nodes()
     node_types = get_node_types(nodes)
     n_categories = node_types.shape[1]
     adj_view = observation.adj
@@ -84,19 +93,8 @@ def normalize_observation(observation):
     observation_normalized_as_array = np.concatenate(
         (observation_normalized_as_array, np.array(agent_attrs).reshape(-1, 1)))
 
-    with open('../env/env_parameters.yml', 'r') as conf:
-        p_env = yaml.load(conf, Loader=yaml.FullLoader)
-    p_env = Struct(**p_env)
-    if p_env.env == "small":
-        env = p_env.small_env
-    elif p_env.env == "medium":
-        env = p_env.medium_env
-    elif p_env.env == "big":
-        env = p_env.big_env
-    else:
-        raise ValueError("env value in conf file must be one of [small, medium, big]")
 
-    max_state_size = env.max_state_size
+
     n_observations = len(observation_normalized_as_array)
     if n_observations > max_state_size:
         # then need to prune the observation

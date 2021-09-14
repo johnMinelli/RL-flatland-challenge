@@ -38,7 +38,7 @@ class FlatlandRailEnv(RailEnv):
         # Reset deadlocks
         info = self.dl_controller.reset(info)
         # Normalization phase
-        obs = self.norm_controller.normalize_observations(obs)
+        obs = self.norm_controller.normalize_observations(obs, self.state_size)
         # Reset statistics
         self.stats_controller.reset()
 
@@ -58,7 +58,7 @@ class FlatlandRailEnv(RailEnv):
         # Deadlocks check
         info = self.dl_controller.check_deadlocks(info, obs)
         # Normalization phase
-        obs = self.norm_controller.normalize_observations(obs)
+        obs = self.norm_controller.normalize_observations(obs, self.state_size)
         # Rewards progress
         rewards = self._compute_rewards(rewards, dones, info)
         # Stats progress
