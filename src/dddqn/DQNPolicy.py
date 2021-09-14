@@ -77,7 +77,7 @@ class DQNPolicy(Policy):
             # q value for current action
             q_pred = self.model(state.reshape(1, -1))[:,action]
             # best q value w.r.t. to actions
-            q_new = reward * self.gamma * tf.math.reduce_max(self.target_model(next_state.reshape(1, -1)), axis=1, keepdims=True)
+            q_new = reward + self.gamma * tf.math.reduce_max(self.target_model(next_state.reshape(1, -1)), axis=1, keepdims=True)
 
             td_error = tf.math.reduce_sum(abs(q_new - q_pred)).numpy().astype(np.float32)
             self.memory.add((state, action, reward, next_state, done),td_error)

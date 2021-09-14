@@ -583,7 +583,7 @@ class DagObserver(ObservationBuilder):
             # move all edges from t to ends
             for label, edges in general_graph.reverse()[t].items():
                 for key, edge_data in edges.items():
-                    if dir_from_access_point(edge_data['access_point'][t]) in np.array(ends)[:,2]:
+                    if len(ends)>0 and dir_from_access_point(edge_data['access_point'][t]) in np.array(ends)[:,2]:
                         for e in ends:
                             if dir_from_access_point(edge_data['access_point'][t]) == e[2]:
                                 general_graph.add_edge(label, e, **{**edge_data, 'key': key})
