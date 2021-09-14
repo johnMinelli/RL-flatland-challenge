@@ -1,12 +1,11 @@
 ﻿import random
 import numpy as np
 from flatland.envs.rail_env import RailEnvActions
-from  flatland.envs.malfunction_generators import MalfunctionParameters
 
 from src.utils.env_utils import create_rail_env, copy_obs
 from src.utils.log_utils import Timer, TBLogger
 from src.dddqn.DQNPolicy import DQNPolicy, DoubleDuelingDQNPolicy
-from src.dddqn.a2c import A2C
+from copy import deepcopy
 
 try:
     import wandb
@@ -65,8 +64,6 @@ def train(env_params, train_params, wandb_config=None):
     ####################################################################################################################
     # Training starts
     training_timer.start()
-
-    agent_prev_obs = [None] * env_params.n_agents
     agent_prev_action = [2] * env_params.n_agents
 
 
@@ -78,18 +75,11 @@ def train(env_params, train_params, wandb_config=None):
 
         reset_timer.start()
         obs, info = env.reset()
+        prev_obs = deepcopy(obs)
         reset_timer.end()
 
-        # Build initial agent-specific observations
-        #for agent in range(env_params.n_agents):
-        #    if obs[agent] is not None:
-        #        print(obs[agent])
-        #        agent_prev_obs[agent] = copy_obs(obs[agent])
-
         # Run episode
-        #print('Max steps ', max_steps)
         for step in range(max_steps):
-            #print('Step ', step)
             # Action dictionary to feed to step
             agents_action = dict()
 
@@ -107,28 +97,25 @@ def train(env_params, train_params, wandb_config=None):
 
             # Environment step
             step_timer.start()
-            next_obs, rewards, done, info = env.step(agents_action)
+            obs, rewards, done, info = env.step(agents_action)
 
             step_timer.end()
 
             for agent in range(env_params.n_agents):
 
                 # learning step only for agents at switch/pre-switch decision
-                if agent in agents_policy_guided and not obs[agent] is None:
+                if agent in agents_policy_guided and prev_obs[agent] is not None and obs[agent] is not None and not np.array_equal(prev_obs[agent], obs[agent]): # FIXME è giusto togliere il caso degli state uguali?
                     learn_timer.start()
-                    policy.step(obs[agent], agent_prev_action[agent], rewards[agent], next_obs[agent], done[agent])
+                    policy.step(prev_obs[agent], agent_prev_action[agent], rewards[agent], obs[agent], done[agent])
                     learn_timer.end()
-
-                    #agent_prev_obs[agent] = copy_obs(obs[agent])
-
 
                 if agent in agents_action:
                     agent_prev_action[agent] = agents_action[agent]
                 else:
                     agent_prev_action[agent] = int(RailEnvActions.DO_NOTHING)
 
-                if next_obs[agent] is not None:
-                    obs[agent] = next_obs[agent]
+                if obs[agent] is not None:
+                    prev_obs[agent] = obs[agent]
 
             if env_params.render:
                 env.show_render()
@@ -176,4 +163,3 @@ def train(env_params, train_params, wandb_config=None):
             logger.write(env, train_params.dddqn, {"step": step_timer, "reset": reset_timer, "learn": learn_timer, "train": training_timer}, episode)
 
         #stopped_for_deadlock = False
-

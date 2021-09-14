@@ -88,15 +88,14 @@ class DQNPolicy(Policy):
         self.t_step = (self.t_step + 1) % self.update_rate
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
-            if self.memory.can_sample():
+            if self.memory.can_sample() and train:
                 if not self.priority:
                     experiences = self.memory.sample()
                     indexes = None
                     weights = None
                 else:
                     experiences, indexes, weights = self.memory.sample()
-                if train:
-                    self.learn(experiences, indexes, weights)
+                self.learn(experiences, indexes, weights)
 
     def save(self, filename):
         self.model.save(filename)
@@ -111,7 +110,7 @@ class DQNPolicy(Policy):
                    experiences (Tuple): tuple of (s, a, r, s', done) tuples
                    indexes, weights
         """
-        states, actions, rewards, next_states, dones = experiences # sampled
+        states, actions, rewards, next_states, dones = experiences  # sampled
 
         # batch of observation in memory is a list, need to turn it to array
         states = np.stack(states, axis=0)
@@ -131,18 +130,18 @@ class DQNPolicy(Policy):
                 # update priority of data in replay memory with td error
                 self.memory.update(indexes[idx], tf.math.reduce_sum(abs(q_target[idx] - q_pred[idx])).numpy().astype(np.float32))
 
-       # perform gradient descent step and apply importance sampling weight
+        # perform gradient descent step and apply importance sampling weight
 
-        #scaler = MinMaxScaler()
-        #states = scaler.fit_transform(states)
-        #q_target = scaler.fit_transform(q_target)
+        # scaler = MinMaxScaler()
+        # states = scaler.fit_transform(states)
+        # q_target = scaler.fit_transform(q_target)
         scaler = StandardScaler()
         states = scaler.fit_transform(states, q_target)
         q_target = scaler.fit_transform(q_target)
         self.model.train_on_batch(states, q_target, sample_weight=weights)
 
         if self.t_step % self.update_network_rate == 0:
-                self.update_target_model()
+            self.update_target_model()
 
     def update_target_model(self):
         new_weights = list(map(lambda weight_tensor: self.tau * weight_tensor + (1.0 - self.tau * weight_tensor), self.model.get_weights()))

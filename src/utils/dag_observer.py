@@ -1,9 +1,12 @@
-﻿from copy import deepcopy
+﻿import numpy as np
+from copy import deepcopy
 
 import networkx as nx
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.envs.agent_utils import RailAgentStatus
 import pylab as plt
+from flatland.envs.rail_env import RailEnvActions
+
 from src.env.flatland_railenv import FlatlandRailEnv
 from src.env.flatland_railenv import showdbg, closedbg
 
@@ -46,6 +49,7 @@ class DagObserver(ObservationBuilder):
         self._init_graph()
 
         self.invalid_transitions = []
+        self.prev_observations = {}
         if self.predictor is not None:
             self.predictor.reset(self.graph)
 
@@ -68,8 +72,8 @@ class DagObserver(ObservationBuilder):
         general_graph = deepcopy(self.graph)
 
         active_agents_position = [get_agent_position(a, dir=True) for iter_handle, a in enumerate(self.env.agents) if
-                                  iter_handle != handle and self.env.agents[iter_handle].status == RailAgentStatus.ACTIVE or
-                                  self.env.agents[iter_handle].status == RailAgentStatus.READY_TO_DEPART]
+                                  iter_handle != handle and (self.env.agents[iter_handle].status == RailAgentStatus.ACTIVE or
+                                  self.env.agents[iter_handle].status == RailAgentStatus.READY_TO_DEPART)]
         dead_agents_position = [get_agent_position(a) for a in np.array(self.env.agents)[self.env.dl_controller.deadlocks]]
 
         steps = 0
@@ -81,7 +85,7 @@ class DagObserver(ObservationBuilder):
         start_x, start_y, start_dir = get_agent_position(self.env.agents[handle], dir=True)  # (x, y, d)
         start_pos = (start_x, start_y)
         target = self.env.agents[handle].target[::-1]  # (x,y)
-        node_behind = (*get_next_pos(*start_pos, exit_point=access_point_from_dir(start_dir))[0:2], start_dir)  # rev(rev(->)) = access_point_from_dir(access_point_from_dir(start_dir))
+        node_behind = (*get_next_pos(*start_pos, exit_point=access_point_from_dir(start_dir))[0:2], start_dir)  # the third element is the exitpoint of the node_behind; rev(rev(->)) = access_point_from_dir(access_point_from_dir(start_dir))
         has_switch_behind = False
         if handle in self.prev_observations:
             prev_start_node = self._get_start_node(self.prev_observations[handle])[0]
@@ -89,7 +93,7 @@ class DagObserver(ObservationBuilder):
                 has_switch_behind = True
 
         while (not deadlock_flag and not is_switch(self.env.rail, *start_pos, start_dir)) or \
-            (deadlock_flag and (((*start_pos, opposite_dir(start_dir)) in active_agents_position) or (not any([ is_switch(self.env.rail, *start_pos, d) for d in range(4)])))):
+            (deadlock_flag and (((*start_pos, opposite_dir(start_dir)) in active_agents_position) or (not is_switch(self.env.rail, *start_pos)))):
             # update counters and flags
             if start_pos == target: target_flag = True; break
             if (not deadlock_flag) and (*start_pos, start_dir) in active_agents_position and (not start_pos in dead_agents_position):
@@ -179,13 +183,13 @@ class DagObserver(ObservationBuilder):
                         if is_switch(self.env.rail, pos_x, pos_y, dir):
                             for iter_dir in range(4):
                                 t = [o[iter_dir] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
-                                [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, iter_dir, ending_points) for destination_node in  set(t) if destination_node != (0,0)]
+                                [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, iter_dir, ending_points) for destination_node in set(t) if destination_node != (0,0) and destination_node not in ending_points]
                         else:
-                            while not is_switch(self.env.rail, pos_x, pos_y, dir):
-                                if is_dead_end(self.env.rail, pos_x, pos_y): dir = opposite_dir(dir)
+                            while not is_switch(self.env.rail, pos_x, pos_y):
+                                if is_dead_end(self.env.rail, pos_x, pos_y): dir = opposite_dir(dir); prev_dir = dir
                                 pos_x, pos_y, dir = get_next_oriented_pos(self.env.rail, pos_x, pos_y, dir)
                             t = [o[access_point_from_dir(dir)] for o in general_graph.nodes[(pos_x, pos_y)]["trans_node"]]
-                            [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, access_point_from_dir(dir), ending_points) for destination_node in set(t) if destination_node != (0, 0)]
+                            [self._remove_edge_and_transition(general_graph, (pos_x, pos_y), destination_node, access_point_from_dir(dir), ending_points) for destination_node in set(t) if destination_node != (0, 0) and destination_node not in ending_points]
                     self._build_paths_in_directed_graph(deepcopy(general_graph), di_graph, start_pos, start_dir, ending_points, target,2)
 
                 # STEP3 - add attributes to nodes based on conflicts
@@ -198,10 +202,20 @@ class DagObserver(ObservationBuilder):
                         node_list = set()
                         [node_list.update(nx.descendants_at_distance(matching_graph, start_label, radius)) for radius in range(self.conflict_radius+1)]
                         possible_conflicts = set()
-                        [possible_conflicts.update([(*matching_node[0:2], other_dir) for other_dir in range(4) if len(matching_node) > 2 and other_dir != matching_node[2]]) for matching_node in node_list]
+                        [possible_conflicts.update([(*matching_node[0:2], other_dir) for matching_node in node_list for other_dir in range(4) if len(matching_node) > 2 and other_dir != matching_node[2]])]
                         for conflict_node in possible_conflicts.intersection(di_graph.nodes.keys()):
                             matched_conflict_node = list(set([(*conflict_node[0:2],d) for d in range(4)]).intersection(node_list))[0]
                             di_graph.update(nodes=[(conflict_node, self._encode_conflict_node_attributes(matching_handle, (start_label, start_node), matched_conflict_node))])
+            # add action associated to next node
+            start_label, _ = self._get_start_node(di_graph)
+            for label, edge in di_graph[start_label].items():
+                new_attr = di_graph.nodes[label]
+                action = RailEnvActions.MOVE_FORWARD if int(edge["exit_point"]) == start_label[2] else \
+                            RailEnvActions.MOVE_LEFT if int(edge["exit_point"]) == (start_label[2]-1)%4 else \
+                            RailEnvActions.MOVE_RIGHT if int(edge["exit_point"]) == (start_label[2]+1)%4 else None
+                if action is None: raise("Error")
+                new_attr["action"] = action
+                di_graph.update(nodes=[(label, new_attr)])
 
             observation = di_graph
 
@@ -399,6 +413,7 @@ class DagObserver(ObservationBuilder):
 
                 # need a new dijkstra iteration
                 next_node = next_node if exploration_node is None else exploration_node
+                if next_node in ending_points: break
                 current_exit_point = node_direct_destinations.index(next_node)
                 next_orientation = dir_from_access_point(exploration_graph.get_edge_data(current_node, next_node, current_exit_point)['access_point'][next_node])
                 cost = exploration_graph.get_edge_data(current_node, next_node, current_exit_point)["weight"]
@@ -436,6 +451,7 @@ class DagObserver(ObservationBuilder):
             # if ending_point found, stop
             if next_node in ending_points: target_found = True; break
             next_node_direct_destinations = general_graph.nodes[next_node]["trans_node"][next_orientation]
+            if all([n == (0, 0) for n in next_node_direct_destinations]): break
             for next_exit_point, destination_node in enumerate(next_node_direct_destinations):
                 if destination_node != (0, 0):
                     # remove original edges but leave untouched the intermediary transitions
@@ -487,7 +503,7 @@ class DagObserver(ObservationBuilder):
                                       edges.items() if
                                       edge_data['access_point'][node1] == access_point_from_dir(orientation) and
                                       ((len(ending_points) == 0 and len(
-                                          general_graph.nodes[label]["targets"]) == 0) or (*label, key) not in ending_points)]
+                                          general_graph.nodes[label]["targets"]) == 0) or label not in ending_points)]
                     nodes_to_propagate_action += nodes_affected
         for n, k in nodes_to_propagate_action:
             self._remove_edge_and_transition(general_graph, n, node1, k, ending_points)
@@ -553,12 +569,40 @@ class DagObserver(ObservationBuilder):
             minimum_shortest_simple_path = [node[0:2] for node in valid_paths[np.argmin(paths_costs)]][::-1]
             return min(paths_costs), minimum_shortest_simple_path
         else: return -1, None
-    
+
     def _get_shorthest_path(self, graph, invalid_transitions, source, targets, allowed_source_dir, debug=False, debugs=False):
         # shallow copy of the graph: don't modify node attributes
         general_graph = graph.copy()
+
+        oriented_targets = []
+        for t in targets:
+            exits = np.zeros(4, np.bool)
+            exits[list([dir for cost, dir, cell in general_graph.nodes[t]["targets"].values()])] = True
+            ends = []; passthroughs = []
+            [ends.append((*t, o)) if any(np.array(general_graph.nodes[t]["trans"][o])[exits]) else passthroughs.append((*t, o)) for o in range(4) ]  # * to those other node oriented (not any case) 
+            # move all edges from t to ends
+            for label, edges in general_graph.reverse()[t].items():
+                for key, edge_data in edges.items():
+                    if dir_from_access_point(edge_data['access_point'][t]) in np.array(ends)[:,2]:
+                        for e in ends:
+                            if dir_from_access_point(edge_data['access_point'][t]) == e[2]:
+                                general_graph.add_edge(label, e, **{**edge_data, 'key': key})
+                    else:
+                        for p in passthroughs:
+                            if dir_from_access_point(edge_data['access_point'][t]) == p[2]:
+                                for exit_point, dest_passthroughs in enumerate(general_graph.nodes[t]["trans_node"][p[2]]):
+                                    if dest_passthroughs != (0,0):
+                                        modified_edge_data = deepcopy(edge_data)
+                                        modified_edge_data["weight"] += general_graph.get_edge_data(t,dest_passthroughs, exit_point)["weight"]
+                                        modified_edge_data["access_point"].pop(t)
+                                        modified_edge_data["access_point"][dest_passthroughs] = general_graph.get_edge_data(t,dest_passthroughs, exit_point)["access_point"][dest_passthroughs]
+                                        general_graph.add_edge(label, dest_passthroughs, **{**modified_edge_data, 'key': key})
+            general_graph.remove_node(t)  # the other edges of t should be added to *
+            oriented_targets = [*oriented_targets, *ends]
+
         # prev and prev clones -> cloned -X-> next , -> all the others
         # prev and prev clones -X-> current
+        invalid_transitions = [i for i in invalid_transitions if i[0] not in targets]
         for current, orientation, next in invalid_transitions[::-1]:
             previous = set([label for label, edges in general_graph.reverse()[current].items() for key, edge_data in edges.items() if dir_from_access_point(edge_data['access_point'][current]) == orientation])
             cloned_node = (*current, orientation)
@@ -585,7 +629,7 @@ class DagObserver(ObservationBuilder):
                         except: pass
                         # link prev to cloned
                         general_graph.add_edge(prev, cloned_node, **{**edge_data, 'key': key})
-                        
+
                 # questo cloned deve andare a tutti tranne il next (pay attention to no break this rule for other invalid transitions while adding edges) 
                     # cicla sui prev:
                     #   vanno collegati a questo cloneed
@@ -624,7 +668,7 @@ class DagObserver(ObservationBuilder):
         if debug:
             self._print_graph(general_graph)
             return str(nx.to_dict_of_dicts(general_graph))
-        for i, t in enumerate(targets):
+        for i, t in enumerate(oriented_targets):
             try: valid_paths.append(nx.shortest_simple_paths(general_graph, source, t).__next__())
             except: pass
         if len(valid_paths)!=0:
