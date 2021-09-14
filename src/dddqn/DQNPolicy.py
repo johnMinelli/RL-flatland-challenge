@@ -125,7 +125,7 @@ class DQNPolicy(Policy):
 
         for idx, terminal in enumerate(dones):
 
-            q_target[idx, actions[idx]] = rewards[idx] * self.gamma*q_next[idx]
+            q_target[idx, actions[idx]] = rewards[idx] + self.gamma*q_next[idx]
             if self.priority:
                 # update priority of data in replay memory with td error
                 self.memory.update(indexes[idx], tf.math.reduce_sum(abs(q_target[idx] - q_pred[idx])).numpy().astype(np.float32))
