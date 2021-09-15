@@ -1,7 +1,7 @@
 import yaml
 import numpy as np
 import networkx as nx
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 from spektral.utils import gcn_filter
 
@@ -70,8 +70,8 @@ def normalize_observation(observation, max_state_size):
         X[idx, 0] = 0
         X[idx, 1:1+n_categories] = node_types[idx, :]
         adjacent_nodes = adj_view[node]
-        for v in adjacent_nodes.values():
-            X[idx, 0] += v['weight']
+        weights = [value['weight'] for value in adjacent_nodes.values()]
+        X[idx, 0] = min(weights) if len(weights) else 0
     X = X.astype(np.float32)
 
     gcn = GCN(int(X.shape[1]))
@@ -92,7 +92,6 @@ def normalize_observation(observation, max_state_size):
 
     observation_normalized_as_array = np.concatenate(
         (observation_normalized_as_array, np.array(agent_attrs).reshape(-1, 1)))
-
 
 
     n_observations = len(observation_normalized_as_array)
