@@ -4,7 +4,7 @@ Maximizing the sum of rewards is the method whereby the agent improves the polic
 \section{DQN}
 \cite{dqn} described a network model to approximate the Q-function $Q^{\pi}(s,a)$, which measures, for each state-action pair, the discounted sum of rewards, following from the policy $\pi$. The optimal Q-function, that is the maximum reward which can be obtained by performing a certain action a in state s, obeys the \textbf{Bellman optimality equation} $$Q^*(s,a) = E[r + \gamma max_{a'}Q^*(s', a')]$$
 It follows that the maximum return is obtained by the immediate reward and the discounted return that the agent gets by following the policy; in practice, however, neural networks are needed in order to avoid computing a huge Q-table, and they are trained by minimizing the \textbf{temporal difference} loss, that is the difference between the current prediction and the expected optimal target.  
-We started by implementing a slight variation of DQN as described in \cite{dqn}, without the use of CNN, but by simply using fully connected layers with \textbf{ReLU}, since we felt that this specific environment wouldn't benefit from classic image convolution, though we used graph convolutions later. \\
+We started by implementing a slight variation of DQN as described in \cite{dqn}, without the use of CNN, but by simply using fully connected layers with \textbf{ReLU}, which take as input a vector representation of the graph as processed by he GCN, since we felt that classic convolution wouldn't be very effective in this environment. \\
 \begin{center}
 \begin{neuralnetwork} [nodespacing=10mm, layerspacing=25mm,
 			maintitleheight=2.5em, layertitleheight=2.5em,
@@ -31,7 +31,7 @@ We started by implementing a slight variation of DQN as described in \cite{dqn},
 \end{center}
 	
 \noindent 
-The units in the hidden layers default to 128 and 64, but the dimensions are fully customizable by the user, while the input layer is just made by the state of the environment, and the output layer has as many layers as there are actions in flatland. \\ The \textit{Model} class implements the neural network, using \textbf{Huber loss} and \textbf{Kaiming initialization}. The former is, as explained in \cite{huber}, a loss function that clips the gradient to the $[-1,1]$ interval, avoiding \textbf{exploding gradient}. While on one hand it behaves like the absolute loss, for small errors it is more similar to the squared loss, thus combining the properties of both losses, while circumventing the problem of outliers which plagues the squared loss.\\
+The units in the hidden layers default to 64, but the dimensions and the number of layers are fully customizable by the user, while the input layer is just made by the state of the environment, and the output layer has as many units as there are actions in flatland. \\ The \textit{Model} class implements the neural network, using \textbf{Huber loss} and \textbf{Kaiming initialization}. The former is, as explained in \cite{huber}, a loss function that clips the gradient to the $[-1,1]$ interval, avoiding \textbf{exploding gradient}. While on one hand it behaves like the absolute loss, for small errors it is more similar to the squared loss, thus combining the properties of both losses, while circumventing the problem of outliers which plagues the squared loss.\\
 \begin{figure}[H] 
 \includegraphics[height=80mm, width=100mm, scale=0.5]{chapters/huber.png}
 \centering

@@ -11,30 +11,40 @@ class DQN(Model):
     def get_config(self):
         pass
 
-    def __init__(self, action_size, dense1_dims=128, dense2_dims=64, loss='huber_loss', learning_rate=1e-2):
+    def __init__(self, action_size, dense_dims=64, dense_layers=2, loss='huber_loss', learning_rate=1e-2):
         super(DQN, self).__init__()
 
-        self.layer1 = Dense(dense1_dims, activation='relu', kernel_initializer='he_uniform')
-        self.layer2 = Dense(dense2_dims,  activation='relu', kernel_initializer='he_uniform')
-        self.Q = Dense(action_size, activation='relu', kernel_initializer='he_uniform')
+        self.layers_ = []
+        for n in range(dense_layers):
+            layer = Dense(dense_dims, activation='relu', kernel_initializer='he_uniform')
+            self.layers_.append(layer)
+
+
+        self.layers_.append(Dense(action_size, activation='relu', kernel_initializer='he_uniform'))
 
         self.compile(optimizer=Adam(learning_rate=learning_rate), loss=loss)
 
     def call(self, state, training=False, mask=None):
         # forward pass, possibly training-specific behavior
-        x = self.layer1(state)
-        x = self.layer2(x)
-        Q = self.Q(x)
-        return Q
+        out = self.layers_[0](state)
+        for layer in self.layers[1:]:
+            out = layer(out)
+
+        return out
+
 
 
 class DoubleDuelingDQN(Model):
 
-    def __init__(self, action_size, dense1_dims=128, dense2_dims=64, loss='huber_loss', learning_rate=1e-2):
+    def __init__(self, action_size, dense_dims=64, dense_layers=2, loss='huber_loss', learning_rate=1e-2):
         super(DoubleDuelingDQN, self).__init__()
 
-        self.layer1 = Dense(dense1_dims, activation='relu', kernel_initializer='he_uniform')
-        self.layer2 = Dense(dense2_dims, activation='relu', kernel_initializer='he_uniform')
+        self.layers_ = []
+        for n in range(dense_layers):
+            layer = Dense(dense_dims, activation='relu', kernel_initializer='he_uniform')
+            self.layers_.append(layer)
+
+
         self.V = Dense(1, activation=None, kernel_initializer='he_uniform') # scalar state value, raw value
         self.A = Dense(action_size, activation=None, kernel_initializer='he_uniform')
 
@@ -44,11 +54,13 @@ class DoubleDuelingDQN(Model):
     def call(self, state, training=None, mask=None):
         # forward pass has to compute transformation
         # from A and V to Q
-        x = self.layer1(state)
-        x = self.layer2(x)
+        out = self.layers_[0](state)
+        for layer in self.layers_[1:]:
+            out = layer(out)
+
         # separate computation of V and A
-        V = self.V(x)
-        A = self.A(x)
+        V = self.V(out)
+        A = self.A(out)
         # mean more stable than max advantage
         Q = V + (A - tf.math.reduce_mean(A, axis=1, keepdims=True))
 
@@ -56,9 +68,10 @@ class DoubleDuelingDQN(Model):
 
     def advantage(self, state):
         # useful for action selection where we just use advantage stream
-        x = self.layer1(state)
-        x = self.layer2(x)
-        A = self.A(x)
+        out = self.layers_[0](state)
+        for layer in self.layers_[1:]:
+            out = layer(out)
+        A = self.A(out)
 
         return A
 
