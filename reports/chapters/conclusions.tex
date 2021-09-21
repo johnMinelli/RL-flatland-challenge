@@ -1,0 +1,32 @@
+In our study to solve the flatland challenge problem, we focused on creating an observation that could be as precise as possible. We were able to achieve through the dag, explained in the following section \hyperref[sec:dagObserv]{5.1}, a very high level of detail and quantity of information obtained from the environment and from the map both for each individual agent and for the global environment. \\
+After we have implementated an policy DQN and normalizzation GNN that he exploited all the information gathered from the observation so as to obtain more and more precise cases and then influence future choices dictated by previous episodes. 
+Finally we changed the reward system, parameters and deadlock control to increase performance after several tests.
+In conclusion we noticed that our approach to resolution of the problem obtained, following result:
+\begin{itemize}
+	\item \textbf{excellent start}: every test we did in the first 200 episodes had completion averages above 40\% and deadlock averages below 30\%.
+	\item \textbf{Many episodes}: we have noticed that a very large number is needed to have a growth curve. We have estimated that at least 3000/4000 episodes are needed.
+\end{itemize}
+The final results obtained in the evaluation environments are shown in the tables:
+
+\begin{table}[htb]
+	\centering
+	\bgroup
+	\def\arraystretch{1.5}%
+	\begin{tabular}{|l|l|l|}
+		\hline
+		\multicolumn{1}{|c|}{Metrics}                         & \multicolumn{1}{c|}{Small size} & \multicolumn{1}{c|}{Medium size}                          \\ \hline
+		Completion                        & 0.9193    & 0.8134    \\ \hline
+		Deadlocks                         & 0.0760    & 0.1770    \\ \hline
+		Score                             & -0.167    & -0.262     \\ \hline
+	\end{tabular}
+	\egroup
+	\caption{}
+	\label{tab:evaluation1}
+\end{table}
+\section{Future works}
+Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
+\begin{itemize}
+	\item Explore other normalization methods, in particular \textbf{Spectral Normalisation},  is an approach for controlling the Lipschitz constant of certain families of parametric functions such as linear operators. Using spectral normalisation is sufficient to elevate the performance of a Categorical-DQN.
+	It have been proposed in some works \cite{spectralNorma}
+	\item Explore other observation methods, in particular \textbf{global graphical observations}, which have been proposed in some works such as Stanford \cite{graphiObserv}.
+\end{itemize}
