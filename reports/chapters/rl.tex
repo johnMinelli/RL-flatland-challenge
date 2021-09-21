@@ -92,3 +92,17 @@ The model was further improved with \textbf{dueling} architecture. The main issu
 \end{figure}
 \noindent
 Advantage and value still need to be recombined, and since the standard formula doesn't allow to extract A and V from the Q value, \cite{dueling} suggested to force the advantage to be 0 at the chosen best action, which results in the output formula for Q $$Q_{\pi}(s,a) = V_{\pi}(s) + (A_{\pi}(s,a) - max_{a' in A} A(s,a'))$$ It also highlights, however, that empirically, subtracting the average advantage yields better results.
+
+
+\section{A2C}
+Actor-critic algorithms, unlike \textbf{off-policy} methods, like Q-learning, rely on local updates and transitions, directly trying to learn the optimal policy.\\
+Assuming to parametrize the policy $\pi$, A2C introduces a \textbf{baseline}, the critic network, dependent on the state of the environment, which is essentially the value function \textbf{$V^{\pi}(s_t)$}. Thus, the policy, computed by the actor network, is evaluated w.r.t to this baseline, such that the estimator function becomes $$\nabla_{\theta} log \pi(a_t | s_t,\theta) (R_t - V^{\pi}(s_t))$$ with the difference between the reward and the baseline measuring how well the actor performed. \\ \\
+In \cite{a2c}, the authors implemented an A2C algorithm to solve a DAG scheduling problem. Since we also employed a DAG as observation, we decided to implement an actor-critic network with graph normalization, so as to feed the algorithm an acceptable representation of the graph. \\ 
+The models are the actor and the critic: they share the first 2 Dense layers and then fork from there, the former has an output layer using \textit{softmax} activation function for action probabilities, while the latter has an output layer for the value function; the actor defines a custom loss function that computes the log likelihood baseline function, as described above.  We also utilized an auxiliary model specifically for action selection. Similarly to how DQN was implemented, there is an \textit{A2C} policy class that defines an act, step and learning method:
+\begin{itemize}
+\item \textbf{act}: action selection is not done here through an $\epsilon$ hyperparameter, but by a probabilistic pick of an action.
+\item \textbf{step}: calls the learning method every \textit{update\_rate} timesteps.
+\item \textbf{learn}: computes the difference between the next predicted reward and the baseline value, sets it in the model where the custom loss function is defined, and then trains both the actor and the critic.
+\end{itemize}
+
+ 
