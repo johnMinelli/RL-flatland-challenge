@@ -5,6 +5,7 @@ from flatland.envs.rail_env import RailEnvActions
 from src.utils.env_utils import create_rail_env, copy_obs
 from src.utils.log_utils import Timer, TBLogger
 from src.dddqn.DQNPolicy import DQNPolicy, DoubleDuelingDQNPolicy
+from src.dddqn.a2c import A2C
 from copy import deepcopy
 
 try:
@@ -46,8 +47,8 @@ def train(env_params, train_params, wandb_config=None):
         policy = DQNPolicy(env.state_size, action_size, train_params)
     elif train_params.training.policy == "dddqn":
         policy = DoubleDuelingDQNPolicy(env.state_size, action_size, train_params)
-    #elif train_params.training.policy == "a2c":
-    #    policy= A2C(env.state_size, action_size, train_params)
+    elif train_params.training.policy == "a2c":
+        policy= A2C(env.state_size, action_size, train_params)
 
 
     # Timers
@@ -134,7 +135,8 @@ def train(env_params, train_params, wandb_config=None):
                 break
 
         # Epsilon decay
-        policy.decay()
+        if train_params.training.policy != "a2c":
+            policy.decay()
 
         # Save model and replay buffer at checkpoint
         if episode+1 % train_params.training.checkpoints == 0:

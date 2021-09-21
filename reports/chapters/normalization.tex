@@ -8,11 +8,11 @@ Furthermore, the \textbf{degree matrix} $D$ is included for \textit{symmetric no
 Everything is then passed to an non-linear activation function $\sigma$, and repeated for a number of convolution layers which is a specific parameter of the model.\\ \\
 
 \begin{figure}[H] 
-	\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/gcn.png}
-	\centering
-	\caption{GCN}
-	\label{fig:s5} 
+\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/gcn.png}
+\centering
+\caption{GCN}
+\label{fig:s5} 
 \end{figure}
 \noindent
-As features, each node has the total \textbf{distance} from every adjacent switch in the graph observation, and a one-hot encoding of its type (starting or target node, conflict, deadlock, starvation node, or other). \\
-After the input node features have been processed by the GCN, agent-specific features are added to the vector representation that is then passed to the DQN.
+In \cite{a2c}, in order to summarize the DAG, the authors chose to include, as features and for each node, the number of successors and predecessors nodes, as well as some task scheduling-specific variables. Thus we decided that each node should have the minimum of all \textbf{distances} from neighbors in the graph observation (it expressed better than number of predecessors and successors the ''position'' of a node in the DAG, w.r.t. to the target), and a one-hot encoding of its type (starting or target node, conflict, deadlock, starvation node, other, or a mix of those).\\
+After the input node features have been processed by the GCN, agent-specific and environmental features, like velocity, number of malfunctions, malfunction rate are added to the vector representation that is then passed to the DQN or the A2C.
