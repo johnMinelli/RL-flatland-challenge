@@ -512,68 +512,6 @@ class DagObserver(ObservationBuilder):
         for n, k in nodes_to_propagate_action:
             self._remove_edge_and_transition(general_graph, n, node1, k, ending_points)
 
-    def _get_shorthest_path_rev(self, graph, invalid_transitions, sources, target, allowed_target_dir):
-        # shallow copy of the graph: don't modify node attributes
-        general_graph = graph.copy()
-        reversed_graph = general_graph.reverse()
-        # next and next clones -> cloned -X-> prev , -> all the others
-        # next and next clones -X-> current
-        for current, orientation, next in invalid_transitions[::-1]:
-            previous = [label[0:2] for label, edges in reversed_graph[current].items() for key, edge_data in edges.items() if edge_data['access_point'][current] == opposite_dir(orientation)]
-            cloned_node = (*current, orientation)
-            # connect the cloned to the possible end nodes: not the previous
-            # if cloned_node not in reversed_graph.nodes:  # since you can have multiple invalid_trans on the same current
-            reversed_graph.add_node(cloned_node, **general_graph.nodes[current])
-            for end, data in reversed_graph[current].items():
-                if (end[0:2] not in previous) and (current != end[0:2]) and (end[0:2],orientation,current) not in invalid_transitions and \
-                        any([bool(reversed_graph.nodes[current]["trans"][dir_from_access_point(access)][access_point_from_dir(orientation)]) for access in [edge_data["access_point"][current] for key, edge_data in data.items()]]): # and gli archi entranti (secondo l'entrata che hanno) hanno accesso all'uscita opposite_dir(orientation)
-                    [reversed_graph.add_edge(cloned_node, end, **{**edge_data, 'key': key}) for key, edge_data in data.items()]
-            # else:
-            #     for end, data in deepcopy(reversed_graph[cloned_node].items()):
-            #         if end[0:2] in previous:
-            #             edge_set = deepcopy(data.items())
-            #             [reversed_graph.remove_edge(cloned_node, end, key=key) for key, edge_data in edge_set]
-
-            for end, data in deepcopy(general_graph[current].items()):
-                if end[0:2] == next[0:2]:
-                    # connect next to cloned, but also the next's clones to cloned
-                    edge_set = deepcopy(data.items())
-                    for key, edge_data in edge_set:
-                        reversed_graph.add_edge(next, cloned_node, **{**edge_data, 'key': key})
-                        [reversed_graph.add_edge((*next, clone), cloned_node, **{**edge_data, 'key': key}) for clone in range(4) if (*next, clone) in reversed_graph.nodes and (cloned_node[0:2], cloned_node[2], next) not in invalid_transitions]
-                    edge_set = deepcopy(data.items())
-                    # negate the next to current, but also the next's clones to current
-                    for key, edge_data in edge_set:
-                        try: reversed_graph.remove_edge(next, current, key=key)
-                        except: pass
-                        [reversed_graph.remove_edge((*next, clone), current, key=key) for clone in range(4) if reversed_graph.get_edge_data((*next, clone), current, key)]
-        # remove unfeasible directions
-        feasible_destinations = reversed_graph.nodes[target]["trans_node"][allowed_target_dir]
-        for destination, attr in general_graph[target].items():
-            if not destination in feasible_destinations:
-                for edge_key in [a['access_point'][target] for i, a in attr.items()]:
-                    try: reversed_graph.remove_edge(destination, target, key=edge_key)
-                    except: pass
-        # convert to a standard DiGraph using the cheapest edge weight
-        n = (-1,-1); w = 0; edge_set = deepcopy(reversed_graph.edges.items())
-        for l,a in edge_set:
-            if l[0:2]==n[0:2]:
-                if a["weight"] < w:
-                    w = a["weight"]
-                    reversed_graph.remove_edge(*n)
-                else: reversed_graph.remove_edge(*l)
-            else: n=l
-        reversed_graph = nx.DiGraph(reversed_graph)
-        valid_paths = []
-        for i, s in enumerate(sources):
-            try: valid_paths.append(nx.shortest_simple_paths(reversed_graph, s, target).__next__())
-            except: pass
-        if len(valid_paths)!=0:
-            paths_costs = [nx.path_weight(reversed_graph, p, "weight") for p in valid_paths]
-            minimum_shortest_simple_path = [node[0:2] for node in valid_paths[np.argmin(paths_costs)]][::-1]
-            return min(paths_costs), minimum_shortest_simple_path
-        else: return -1, None
-
     def _get_shorthest_path(self, graph, invalid_transitions, source, targets, allowed_source_dir, debug=False, debugs=False):
         # shallow copy of the graph: don't modify node attributes
         general_graph = graph.copy()
