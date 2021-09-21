@@ -87,13 +87,13 @@ def train(env_params, train_params, wandb_config=None):
             agents_policy_guided = set()
 
             for agent in range(env_params.n_agents):
-                if env.dl_controller.deadlocks[agent] or not env.action_required(env.agents[agent]):
+                if env.dl_controller.deadlocks[agent] or not info['action_required'][agent]:
                     continue
                 if info["decision_required"][agent]:
                     # If an action is required, the actor predicts an action
                     agents_policy_guided.add(agent)
                     agents_action[agent] = policy.act(obs[agent])
-                else: agents_action[agent] = env.get_act(agent)
+                else: agents_action[agent] = int(RailEnvActions.MOVE_FORWARD)
 
             # Environment step
             step_timer.start()

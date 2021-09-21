@@ -1,4 +1,5 @@
 \section{Graph observer}
+\label{sec:dagObserv}
 One of the main objectives of the Flatland-Challenge is to find a suitable observation (relevant features for the problem at hand) to solve the task. For this reason the Flatland library provide full flexibility when it comes to building your custom observations. Whenever an environment needs to compute new observations for each agent, it queries an object derived from the \texttt{ObservationBuilder} base class, which takes the current state of the environment and returns the desired observation.\\
 We had at our disposal for testing the environment many observer:
 \begin{itemize}

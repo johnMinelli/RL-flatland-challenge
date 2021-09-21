@@ -213,7 +213,8 @@ class DagObserver(ObservationBuilder):
                 action = RailEnvActions.MOVE_FORWARD if int(edge["exit_point"]) == start_label[2] else \
                             RailEnvActions.MOVE_LEFT if int(edge["exit_point"]) == (start_label[2]-1)%4 else \
                             RailEnvActions.MOVE_RIGHT if int(edge["exit_point"]) == (start_label[2]+1)%4 else None
-                if action is None: raise("Error")
+                if action is None:
+                    raise("Error")
                 new_attr["action"] = action
                 di_graph.update(nodes=[(label, new_attr)])
 
@@ -311,6 +312,7 @@ class DagObserver(ObservationBuilder):
                 if next_node in node_direct_destinations:
                     indices = [i for i, n in enumerate(node_direct_destinations) if n == next_node and ((current_node), i, next_node) not in invalid_transitions]
                 if len(indices) > 0:  # transition is valid: continue on the path
+                    scd = None, None, None
                     for current_exit_point in indices:
                         next_orientation = dir_from_access_point(exploration_graph.get_edge_data(current_node, next_node, current_exit_point)['access_point'][next_node])
                         steps, cost, destination, dead_end_flag, ending_point_flag = self._update_graph_until_switch(exploration_graph, ending_points,
@@ -318,10 +320,12 @@ class DagObserver(ObservationBuilder):
                                                                                        next_node, next_orientation)
                         if ending_point_flag: destination = target
                         if dead_end_flag: directed_graph.add_node(destination, **{DagNodeLabel.DEAD_END: True})
-                        directed_graph.add_edge((*current_node, current_orientation), destination, **{'weight': cost, 'exit_point': current_exit_point})
+                        if destination != scd[2] or (destination == scd[2] and (cost < scd[1] or (cost == scd[1] and steps < scd[0]))):
+                            directed_graph.add_edge((*current_node, current_orientation), destination, **{'weight': cost, 'exit_point': current_exit_point})
                         if ending_point_flag: break
-                        if destination[0:2] in destinations: destinations[destination[0:2]].append(destination[2])
-                        else: destinations[destination[0:2]] = [destination[2]]
+                        if destination[0:2] in destinations: destinations[destination[0:2]].add(destination[2])
+                        else: destinations[destination[0:2]] = set([destination[2]])
+                        scd = steps, cost, destination
 
                     if ending_point_flag: break
                     for node_destination, orientations_destination in destinations.items():
@@ -343,7 +347,7 @@ class DagObserver(ObservationBuilder):
 
                     # update iterators and continue
                     current_node = list(destinations.keys())[0]
-                    current_orientation = destinations[current_node][0]
+                    current_orientation = list(destinations[current_node])[0]
                     try:  i = i+path[i:i+steps].index(current_node)+1
                     except: # end of path reached and no allowed direction for target found
                         _, path = self._get_shorthest_path(exploration_graph, invalid_transitions, current_node, ending_points, current_orientation)
@@ -384,7 +388,7 @@ class DagObserver(ObservationBuilder):
 
                         if unreachable_node in exploration_graph.nodes[current_node]["trans_node"][dir_from_access_point(current_exit_point)]:
                             # transition which eventually with a dead and can take you to the unreachable_node
-                            next_orientation = opposite_dir(exploration_graph.get_edge_data(current_node, destination_node, current_exit_point)['access_point'][destination_node])
+                            next_orientation = dir_from_access_point(exploration_graph.get_edge_data(current_node, destination_node, current_exit_point)['access_point'][destination_node])
                             _, cost, destination, dead_end_flag, _ = self._update_graph_until_switch(exploration_graph, ending_points,
                                                                                                current_node, current_orientation,
                                                                                                destination_node, next_orientation)
@@ -405,7 +409,7 @@ class DagObserver(ObservationBuilder):
                                                                                                          destination_node, next_orientation,
                                                                                                          destination_node, opposite_dir(next_orientation))
                                 if ending_point_flag: dead_end_destination = target  # then continue and maybe find a better path
-                                directed_graph.add_node(dead_end_destination, **{"dead_end": True})
+                                directed_graph.add_node(dead_end_destination, **{DagNodeLabel.DEAD_END: True})
                                 directed_graph.add_edge((*destination_node, next_orientation), dead_end_destination,
                                                         **{'weight': dead_end_cost, 'exit_point': node_direct_destinations.index(destination_node)})
                         elif exploration_node is None: exploration_node = destination_node

@@ -68,7 +68,8 @@ class FlatlandRailEnv(RailEnv):
 
         if stats: self.stats = stats
 
-        self.prev_observations = deepcopy(obs)
+        for a,o in obs.items():
+            if o is not None: self.prev_observations[a] = deepcopy(o)
         return norm_obs, rewards, dones, info
 
     def show_render(self):
