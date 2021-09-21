@@ -71,17 +71,16 @@ class DeadlocksGraphController:
                 for label, node in graph.nodes.items():
                     if dag_observer.DagNodeLabel.DEADLOCK in node:
                         opposite_label = (*label[0:2], opposite_dir(label[2]))
+                        info["deadlocks"][handle] = True
                         if node["first_time_detection"]:
                             if node['steps_to_deadlock'] == 0:
                                 try: self.deadlock_positions.remove(opposite_label)
                                 except: pass
-                                info["deadlocks"][handle] = True
                                 self.deadlocks[handle] = True
                         elif node['steps_to_deadlock'] == 0:
                             self.deadlock_positions.add(opposite_label)
                             self.deadlocks[handle] = True
-                            info["deadlocks"][handle] = True
-                            if self.starvations[handle] :
+                            if self.starvations[handle]:
                                 self.starvations_target[handle] = True
                         break
                     elif dag_observer.DagNodeLabel.STARVATION in node:

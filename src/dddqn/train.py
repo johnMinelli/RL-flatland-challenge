@@ -2,6 +2,7 @@
 import numpy as np
 from flatland.envs.rail_env import RailEnvActions
 
+from src.dddqn.a2c import A2C
 from src.utils.env_utils import create_rail_env, copy_obs
 from src.utils.log_utils import Timer, TBLogger
 from src.dddqn.DQNPolicy import DQNPolicy, DoubleDuelingDQNPolicy
@@ -46,8 +47,8 @@ def train(env_params, train_params, wandb_config=None):
         policy = DQNPolicy(env.state_size, action_size, train_params)
     elif train_params.training.policy == "dddqn":
         policy = DoubleDuelingDQNPolicy(env.state_size, action_size, train_params)
-    #elif train_params.training.policy == "a2c":
-    #    policy= A2C(env.state_size, action_size, train_params)
+    elif train_params.training.policy == "a2c":
+       policy= A2C(env.state_size, action_size, train_params)
 
 
     # Timers
@@ -104,7 +105,7 @@ def train(env_params, train_params, wandb_config=None):
             for agent in range(env_params.n_agents):
 
                 # learning step only for agents at switch/pre-switch decision
-                if agent in agents_policy_guided and prev_obs[agent] is not None and obs[agent] is not None and not np.array_equal(prev_obs[agent], obs[agent]): # FIXME è giusto togliere il caso degli state uguali?
+                if info['action_required'][agent] and prev_obs[agent] is not None and obs[agent] is not None:
                     learn_timer.start()
                     policy.step(prev_obs[agent], agent_prev_action[agent], rewards[agent], obs[agent], done[agent])
                     learn_timer.end()
@@ -121,16 +122,6 @@ def train(env_params, train_params, wandb_config=None):
                 env.show_render()
 
             if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] or env.dl_controller.starvations[a.handle] for a in env.agents]):
-            #if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] for a in env.agents]):
-                #if any([env.dl_controller.deadlocks[a.handle] for a in env.agents]):
-                #    with open('deadlocks.txt', 'a+') as f:
-                #        f.write('deadlock')
-                #if any([env.dl_controller.starvations[a.handle] for a in env.agents]):
-                #    with open('starvations.txt', 'a+') as f:
-                #        f.write('starvation')
-                #if all([done[a.handle] for a in env.agents]):
-                #    with open('dones.txt', 'a+') as f:
-                #        f.write('done')
                 break
 
         # Epsilon decay

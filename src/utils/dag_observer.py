@@ -194,7 +194,7 @@ class DagObserver(ObservationBuilder):
 
                 # STEP3 - add attributes to nodes based on conflicts
                 agent_ranking_pos = self.prioritized_agents.index(handle)
-                for matching_handle in self.prioritized_agents[:agent_ranking_pos]:
+                for matching_handle in set(np.array(np.concatenate([self.prioritized_agents[:agent_ranking_pos],np.argwhere(np.array(self.env.dl_controller.deadlocks)>0).ravel()]), dtype=int)):
                     # find conflict nodes: common nodes between the obs DiGraph of the agents (compare only x, y)
                     if self.env.agents[matching_handle].status == RailAgentStatus.ACTIVE and matching_handle in self.prev_observations:
                         matching_graph = self.prev_observations[matching_handle]
