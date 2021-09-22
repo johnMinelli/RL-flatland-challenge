@@ -14,5 +14,11 @@ Everything is then passed to an non-linear activation function $\sigma$, and rep
 \label{fig:s5} 
 \end{figure}
 \noindent
-In \cite{a2c}, in order to summarize the DAG, the authors chose to include, as features and for each node, the number of successors and predecessors nodes, as well as some task scheduling-specific variables. Thus we decided that each node should have the minimum of all \textbf{distances} from neighbors in the graph observation (it expressed better than number of predecessors and successors the ''position'' of a node in the DAG, w.r.t. to the target), and a one-hot encoding of its type (starting or target node, conflict, deadlock, starvation node, other, or a mix of those).\\
+In \cite{a2c}, in order to summarize the DAG, the authors chose to include, as features and for each node, the number of successors and predecessors nodes, as well as some task scheduling-specific variables. Thus we decided that each node should have
+\begin{itemize}
+\item the minimum of all \textbf{distances} from neighbors in the graph observation, since it expresses better than number of predecessors and successors the ''position'' of a node in the DAG, especially w.r.t. to the target.
+\item a one-hot encoding of its type: \textit{starting} or target node, \textit{conflict}, \textit{deadlock}, \textit{starvation} node, a mix of those ( a node could be a conflict but also the starting one) or \textit{other}, in case it doesn't belong to any other category.
+
+\end{itemize}
+\noindent
 After the input node features have been processed by the GCN, agent-specific and environmental features, like velocity, number of malfunctions, malfunction rate are added to the vector representation that is then passed to the DQN or the A2C.
