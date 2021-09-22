@@ -33,7 +33,7 @@ We started by implementing a slight variation of DQN as described in \cite{dqn},
 \noindent 
 The units in the hidden layers default to 64, but the dimensions and the number of layers are fully customizable by the user, while the input layer is just made by the state of the environment, and the output layer has as many units as there are actions in flatland. \\ The \textit{Model} class implements the neural network, using \textbf{Huber loss} and \textbf{Kaiming initialization}. The former is, as explained in \cite{huber}, a loss function that clips the gradient to the $[-1,1]$ interval, avoiding \textbf{exploding gradient}. While on one hand it behaves like the absolute loss, for small errors it is more similar to the squared loss, thus combining the properties of both losses, while circumventing the problem of outliers which plagues the squared loss.\\
 \begin{figure}[H] 
-\includegraphics[height=80mm, width=100mm, scale=0.5]{chapters/huber.png}
+\includegraphics[height=80mm, width=100mm, scale=0.5]{figures/huber.png}
 \centering
 \caption{Huber and squared loss}
 \label{fig:s2} 
@@ -42,7 +42,7 @@ The units in the hidden layers default to 64, but the dimensions and the number 
  \\ Kaiming initialization is instead a method for weights matrix initialization, described in \cite{kaiming}, which draws samples from a standard normal distribution, to avoid \textbf{vanishing} and \textbf{exploding gradient}, and then adjusts this distribution to the ReLU activation function. It does so by doubling the variance, since ReLU halves it w.r.t. to the original standard normal distribution (see \ref{fig:s3}).
  
  \begin{figure}[H] 
-\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/relu_dist.png}
+\includegraphics[height=80mm, width=140mm, scale=0.5]{figures/relu_dist.png}
 \centering
 \caption{Normal and ReLU distributions}
 \label{fig:s3} 
@@ -71,7 +71,7 @@ This implementation uses a \textit{sum tree} data structure to store priorities 
 \noindent
 
  \begin{figure}[H] 
-\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/SumTree.png}
+\includegraphics[height=80mm, width=140mm, scale=0.5]{figures/SumTree.png}
 \centering
 \caption{Sum Tree}
 \label{fig:s4} 
@@ -85,7 +85,7 @@ The \textit{SumTree} class stores 2 numpy arrays, one for the experiences (so ju
 The model was further improved with \textbf{dueling} architecture. The main issue of standard DQN lies in the fact that the \textbf{Bellman operator} tends to overestimate the Q value: as stated in \cite{dueling}, the solution seems to be to separate the computation of the Q value in 2 separate functions, $$Q_{\pi}(s,a) = V_{\pi}(s) + A_{\pi}(s,a) $$ The \textbf{advantage} $A(s,a)$, which computes the  ''advantage'' of taking the action a in state s w.r.t. the other possible actions in that state, and the \textbf{value} $V(s)$ which simply measures how good the state s is, regardless of the possible actions; this is particularly useful whenever we're dealing with environments that are not affected by actions in every state, like Flatland, where actions are only really relevant at switches.
 
 \begin{figure}[H] 
-\includegraphics[height=80mm, width=140mm, scale=0.5]{chapters/dueling.jpg}
+\includegraphics[height=80mm, width=140mm, scale=0.5]{figures/dueling.jpg}
 \centering
 \caption{Dueling DQN}
 \label{fig:s5} 
