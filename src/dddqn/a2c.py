@@ -35,11 +35,11 @@ class A2C(Policy):
         #self.actor, self.critic, self.policy = self.build_actor_critic_network()
         self.actor = Actor(self.action_size, self.alpha)
         self.critic = Critic(None, self.beta)
-        self.policy = Critic(self.action_size, self.beta)
+        #self.policy = Critic(self.action_size, self.beta)
 
         self.actor.build(input_shape=(None, self.state_size))
         self.critic.build(input_shape=(None, self.state_size))
-        self.policy.build(input_shape=(None, self.state_size))
+        #self.policy.build(input_shape=(None, self.state_size))
         self.action_space = [i for i in range(self.action_size)]
 
 
@@ -56,7 +56,7 @@ class A2C(Policy):
     def act(self, observation):
         # adapt observation to state
 
-        probabilities = self.policy.predict(observation.reshape(1, -1))[0]
+        probabilities = self.actor.predict(observation.reshape(1, -1))[0]
         action = np.random.choice(self.action_space, p=probabilities)
 
         return action
