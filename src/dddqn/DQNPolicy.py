@@ -127,10 +127,6 @@ class DQNPolicy(Policy):
         states = states.reshape(states.shape[0], states.shape[1])
         next_states = next_states.reshape(next_states.shape[0], next_states.shape[1])
 
-        scaler = StandardScaler()
-        states = scaler.fit_transform(states)
-        next_states = scaler.fit_transform(next_states)
-
         q_pred = self.model(states)
         q_next = tf.math.reduce_max(self.target_model(next_states), axis=1, keepdims=True).numpy()
         q_target = np.copy(q_pred)
@@ -144,11 +140,6 @@ class DQNPolicy(Policy):
                 self.memory.update(indexes[idx], tf.math.reduce_sum(abs(q_target[idx] - q_pred[idx])).numpy().astype(np.float32))
 
         # perform gradient descent step and apply importance sampling weight
-
-        # scaler = MinMaxScaler()
-        # states = scaler.fit_transform(states)
-        # q_target = scaler.fit_transform(q_target)
-
         self.model.train_on_batch(states, q_target, sample_weight=weights)
 
 

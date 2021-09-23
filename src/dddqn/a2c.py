@@ -80,7 +80,5 @@ class A2C(Policy):
 
         # both train, actor for choosing the action/policy and
         # critic for informing the actor of the best action to take
-        #from tensorflow.python.framework.ops import disable_eager_execution
-        #disable_eager_execution()
         self.actor.train_on_batch(state, actions)
         self.critic.train_on_batch(state, target)
