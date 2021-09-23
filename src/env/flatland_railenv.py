@@ -1,4 +1,6 @@
 from copy import deepcopy
+
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.utils.rendertools import RenderTool
 
@@ -136,7 +138,7 @@ class FlatlandRailEnv(RailEnv):
         # Rewards for previous action which caused such observation is given to the policy to learn
         # Also will be given prev_step observation and current observation
         for i_agent, agent in enumerate(self.agents):
-            if dones[i_agent]:
+            if dones[i_agent] and (agent.status == RailAgentStatus.DONE or agent.status == RailAgentStatus.DONE_REMOVED):
                 rewards[i_agent] = self.params.rewards.goal_reward
             elif info["deadlocks"][i_agent] and not self.dl_controller.starvations_target[i_agent]:
                 rewards[i_agent] = self.params.rewards.deadlock_penalty
