@@ -122,10 +122,6 @@ def train(env_params, train_params, wandb_config=None):
                 env.show_render()
 
             if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] or env.dl_controller.starvations[a.handle] for a in env.agents]):
-                if all([str(a.status) == "RailAgentStatus.DONE_REMOVED" for a in env.agents]):
-                    for agent in range(env_params.n_agents):
-                        policy.step(obs[agent], agent_prev_action[agent],
-                                    env_params.rewards.goal_reward * (max_steps - step), obs[agent], done[agent])
                 break
 
         # Epsilon decay

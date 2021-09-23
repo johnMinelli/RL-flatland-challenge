@@ -20,6 +20,7 @@ class FlatlandRailEnv(RailEnv):
         self.norm_controller = NormalizerController(self, env_params)
         self.dl_controller = env_params.deadlocks(self)
         self.stats_controller = StatisticsController(self, env_params)
+        self.done_norm_obs = {}
 
         # Calculate the state size given the depth of the tree observation and the number of features
         self.state_size = self.params.max_state_size
