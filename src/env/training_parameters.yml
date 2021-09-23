@@ -23,7 +23,7 @@ replay_buffer:
 
 dddqn:
   # Discount rate
-  gamma: 1.0
+  gamma: 0.98
   # Exploration rate
   epsilon_start: 1.0
   # Minimal exploration rate (epsilon-greedy)
