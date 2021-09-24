@@ -1,13 +1,11 @@
-import yaml
 import numpy as np
 import networkx as nx
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from spektral.utils import gcn_filter
 
 from src.utils.dag_observer import DagNodeLabel
-from src.utils.utils import Struct
-from src.dddqn.model import GCN
+from src.common.model import GCN
 
 def get_node_types(nodes):
     attrs = nodes._nodes

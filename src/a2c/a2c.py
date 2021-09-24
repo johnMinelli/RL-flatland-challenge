@@ -1,11 +1,7 @@
-from keras import backend as K
-from tensorflow.keras.layers import Dense, Input, Activation
-from tensorflow.keras import Model
-from tensorflow.keras.optimizers import Adam
 import numpy as np
 
-from ..common.Policy import Policy
-from .model import Actor, Critic
+from src.common.Policy import Policy
+from src.common.model import Actor, Critic
 
 class A2C(Policy):
     # significant sensitivity to layer size

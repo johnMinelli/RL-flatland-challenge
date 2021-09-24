@@ -61,7 +61,7 @@ training:
   tensorboard_path: ""
   # Console logs
   print_stats: True
-  policy: "dddqn"
+  size_env: "small"
 
 evaluating:
   active: False

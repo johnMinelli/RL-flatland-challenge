@@ -1,22 +1,20 @@
-from collections import deque
 import numpy as np
 import tensorflow as tf
 import os
 import keras
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
 # local imports
 from src.common.Policy import Policy
-from src.dddqn.model import DQN, DoubleDuelingDQN
-from src.dddqn.experience_replay import UniformReplayBuffer, PrioritizedReplay
+from src.common.model import DQN
+from src.common.experience_replay import UniformReplayBuffer, PrioritizedReplay
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-class DQNPolicy(Policy):
+class DQNAgent(Policy):
     """ Initializes attributes and constructs CNN model and target_model """
 
     def __init__(self, state_size, action_size, train_params):
-        super(DQNPolicy, self).__init__()
+        super(DQNAgent, self).__init__()
 
         self.state_size = state_size
         self.action_size = action_size
@@ -152,28 +150,4 @@ class DQNPolicy(Policy):
 
     def decay(self):
         self.epsilon = max(self.epsilon_min, self.epsilon_decay * self.epsilon)
-
-
-class DoubleDuelingDQNPolicy(DQNPolicy):
-
-    def __init__(self, state_size, action_size, train_params):
-        super().__init__(state_size, action_size, train_params)
-
-        self.model = DoubleDuelingDQN(self.action_size)
-        self.target_model = DoubleDuelingDQN(self.action_size)
-
-        self.model.build(input_shape=(None, self.state_size))
-        self.target_model.build(input_shape=(None, self.state_size))
-
-    def act(self, state):
-
-        n = np.random.random()
-        if n <= self.epsilon:
-            return np.random.randint(0, self.action_size)
-        else:
-
-            # we only use the advantage array for action pick
-            actions = self.model.advantage(state.reshape(1, -1))
-
-            return np.argmax(actions[0])
 

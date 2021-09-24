@@ -1,15 +1,11 @@
-﻿import yaml
-from flatland.envs.observations import TreeObsForRailEnv
-from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+import yaml
 
 from src.utils.dag_observer import DagObserver
 from src.utils.deadlocks import DeadlocksGraphController
 from src.utils.predictors import NullPredictor
 from src.utils.utils import Struct
 from src.utils.graph_normalizer import normalize_observation
-from src.dddqn.train import train
-from src.dddqn.eval import eval
-from argparse import Namespace
+from src.common.train import train
 
 if __name__ == "__main__":
     '''
@@ -25,7 +21,13 @@ if __name__ == "__main__":
     # ============== Choose implementation ==============
     # observer, normalizer, predictor, dl controller
     # ===================================================
-    env = p_env.small_env
+    if t_env.training.size_env == "small":
+        env = p_env.small_env
+    elif t_env.training.size_env == "medium":
+        env = p_env.medium_env
+    elif t_env.training.size_env == "big":
+        env = p_env.big_env
+
 
     wandb_config = {**vars(env), **vars(t_env)}
 
@@ -45,8 +47,5 @@ if __name__ == "__main__":
     }
 
     # run
-    if t_env.evaluating.active:
-        eval(env, t_env)
-    else:
-        train(env, t_env, wandb_config)
+    train(env, t_env, "a2c", wandb_config)
 

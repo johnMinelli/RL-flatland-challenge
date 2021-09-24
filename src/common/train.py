@@ -3,10 +3,10 @@ import numpy as np
 from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnvActions
 
-from src.utils.env_utils import create_rail_env, copy_obs
+from src.utils.env_utils import create_rail_env
 from src.utils.log_utils import Timer, TBLogger
-from src.dddqn.DQNPolicy import DQNPolicy, DoubleDuelingDQNPolicy
-from src.dddqn.a2c import A2C
+from src.dddqn.DoubleDuelingDQNAgent import DQNAgent, DoubleDuelingDQNAgent
+from src.a2c.a2c import A2C
 from copy import deepcopy
 
 try:
@@ -18,7 +18,7 @@ except ImportError as e:
     use_wandb = False
 
 
-def train(env_params, train_params, wandb_config=None):
+def train(env_params, train_params, model, wandb_config=None):
     # Initialize wandb
     if use_wandb:
 
@@ -44,11 +44,11 @@ def train(env_params, train_params, wandb_config=None):
     # Official formula used for the evaluation processes [flatland.envs.schedule_generators.sparse_schedule_generator]
     max_steps = int(4 * 2 * (env_params.width + env_params.height + (env_params.n_agents / env_params.n_cities)))
 
-    if train_params.training.policy == "dqn":
-        policy = DQNPolicy(env.state_size, action_size, train_params)
-    elif train_params.training.policy == "dddqn":
-        policy = DoubleDuelingDQNPolicy(env.state_size, action_size, train_params)
-    elif train_params.training.policy == "a2c":
+    if model == "dqn":
+        policy = DQNAgent(env.state_size, action_size, train_params)
+    elif model == "dddqn":
+        policy = DoubleDuelingDQNAgent(env.state_size, action_size, train_params)
+    elif model == "a2c":
         policy= A2C(env.state_size, action_size, train_params)
 
 
@@ -129,7 +129,7 @@ def train(env_params, train_params, wandb_config=None):
                 break
 
         # Epsilon decay
-        if train_params.training.policy != "a2c":
+        if model != "a2c":
             policy.decay()
 
         # Save model and replay buffer at checkpoint
