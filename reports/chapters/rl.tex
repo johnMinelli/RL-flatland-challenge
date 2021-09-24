@@ -85,7 +85,7 @@ The \textit{SumTree} class stores 2 numpy arrays, one for the experiences (so ju
 The model was further improved with \textbf{dueling} architecture. The main issue of standard DQN lies in the fact that the \textbf{Bellman operator} tends to overestimate the Q value: as stated in \cite{dueling}, the solution seems to be to separate the computation of the Q value in 2 separate functions, $$Q_{\pi}(s,a) = V_{\pi}(s) + A_{\pi}(s,a) $$ The \textbf{advantage} $A(s,a)$, which computes the  ''advantage'' of taking the action a in state s w.r.t. the other possible actions in that state, and the \textbf{value} $V(s)$ which simply measures how good the state s is, regardless of the possible actions; this is particularly useful whenever we're dealing with environments that are not affected by actions in every state, like Flatland, where actions are only really relevant at switches.
 
 \begin{figure}[H] 
-\includegraphics[height=80mm, width=140mm, scale=0.5]{figures/dueling.jpg}
+\includegraphics[ width=140mm, scale=0.5]{figures/dueling.jpg}
 \centering
 \caption{Dueling DQN}
 \label{fig:s5} 

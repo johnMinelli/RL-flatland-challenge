@@ -10,40 +10,24 @@ Finally we changed the reward system, revised the deadlock control procedure and
 \\
 \noindent
 We tested the various implementations we arranged in the project.\\
-In the case of the DDDQN we evaluated different configurations. By intuition we tried to increase the rewards in a way to tempt the policy to prioritize the agent's target as destination. From a starting value of 10 (which is the opposite reward value respect the deadlock event) to 100, obtaining in average better score of completion in the first hundred episode but no gains in the long run.
+In the case of the D3QN we evaluated different configurations. By intuition we tried to increase the rewards in a way to tempt the policy to prioritize the agent's target as destination. From a starting value of 10 (which is the opposite reward value respect the deadlock event) to 100, obtaining in average better score of completion in the first hundred episode but no gains in the long run.
 We hypothesized also a possible bias that could have affected the performance of the policy: since the rewards for the "DONE" agents are submitted at each step maintaining an agent active in the trail for the entire episode could lead to the highest score possible. To solve that we added an additional reward in case of an ending of the episode with all the agents successfully arrived at destination. This reward is proportional to the number of remaining steps.\\
 Finally, following the standard approach suggested by the default implementation, we compared the results obtained by an implementation where the agents are allowed to learn at each step with our concise approach. It was able to perform better both in terms of deadlock value and completion score in the first hundred episodes nevertheless it converged to a common average value after that. Hence our implementation has to be preferred being cheaper in computational cost.\\
 \\
 The A2C performed worse than the DQN and D3QN in practice, since the implementation was less optimized and detailed. Moreover, it might happen that the higher variance of the A2C gradient simply requires more data and more episodes to stabilize and perform reasonably well.
-
+\\
 Here, as follows, we present the results obtained during our training sessions:
-
-\begin{table}[htb]
+\begin{figure}[H]
+	\hspace*{-1.5cm} 
+	\includegraphics[scale=0.5]{figures/graph_result.png}
 	\centering
-	\bgroup
-	\def\arraystretch{1.5}%
-	\begin{tabular}{|l|l|l|}
-		\hline
-		\multicolumn{1}{|c|}{Metrics}                         & \multicolumn{1}{c|}{Small size} & \multicolumn{1}{c|}{Medium size}                          \\ \hline
-		Completion                        & 0.9193    & 0.8134    \\ \hline
-		Deadlocks                         & 0.0760    & 0.1770    \\ \hline
-		Score                             & -0.167    & -0.262     \\ \hline
-	\end{tabular}
-	\egroup
-	\caption{}
-	\label{tab:evaluation1}
-\end{table}
+	\caption{D3QN - small env - done rewards 10, 100 }
+	\label{fig:s5} 
+\end{figure}
 \section{Future works}
 Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
 \begin{itemize}
 	\item For lack of resources we focused primary on the implementation and on the possible techniques which could fit better the resolution job. Proably better results can be obtained wrt the ones we reported by put more effort in the parameters optimization  
-	\item Other normalization methods can be taken in consideration. In particular reports from the state of the art shows in \cite{spectralNorm} how the \textbf{Spectral Normalisation} can be used to optimize the RL model performance. In particular it rely on on the relation between observations data decoupling the weight of the change from the direction of it, affecting optimisation in subtle ways.
-	\item Explore other observation structure. An option we initially evaluated was the possibility to construct an image representation of the environment divided in channel like has been presented in \cite{graphObserv},  with each channel containing agent and environment specific information. Even if still considered by us a valuable option it would be probably of hard implementation.
-\end{itemize}
-\section{Future works}
-Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
-\begin{itemize}
-    \item For lack of resources we focused primary on the implementation and on the possible techniques which could fit better the resolution job. Proably better results can be obtained wrt the ones we reported by put more effort in the parameters optimization  
 	\item Other normalization methods can be taken in consideration. In particular reports from the state of the art shows in \cite{spectralNorm} how the \textbf{Spectral Normalisation} can be used to optimize the RL model performance. In particular it rely on on the relation between observations data decoupling the weight of the change from the direction of it, affecting optimisation in subtle ways.
 	\item Explore other observation structure. An option we initially evaluated was the possibility to construct an image representation of the environment divided in channel like has been presented in \cite{graphObserv},  with each channel containing agent and environment specific information. Even if still considered by us a valuable option it would be probably of hard implementation.
 \end{itemize}
