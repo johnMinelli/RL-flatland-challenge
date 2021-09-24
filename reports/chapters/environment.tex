@@ -64,5 +64,5 @@ There are different rewards for different situations:
 \item full step penalty is assigned when an agent is in state \textit{READY\_TO\_DEPART} and in the current turn moves or stay there (2th step agent case), or when is in malfunction.
 \item full step penalty plus the other penalties (invalid action penalty, stop penalty and start penalty) when the agent is finishing actions or start new ones. Currently the other penalties are all set to zero.
 \end{itemize}
-The end of the Each train starts counting rewards since the beginning, not since it becomes \textit{ACTIVE}. Currently it is possible to say that agents’ rewards are always full step, excluding when the episode ends and when they have finished, where is 0.
+Currently it is possible to say that agents’ rewards are always full step, excluding when the episode ends and when they have finished, where is 0.
 

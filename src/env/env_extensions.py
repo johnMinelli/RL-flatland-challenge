@@ -59,7 +59,6 @@ class StatisticsController:
         # Update score and compute total rewards equal to each agent considering the rewards shaped or normal
         self.score += float(sum(rewards.values()))
 
-
         if dones["__all__"] or self.step >= self.max_steps or deadlocks:
             return self._end_episode(info)
 

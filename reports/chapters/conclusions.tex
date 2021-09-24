@@ -1,19 +1,22 @@
 In our project we tried to solve the flatland challenge problem with a reinforcement learning approach. We splitted the work between the members of the team focusing our attention on different aspects of the challenge equally important in our opinion.
 \begin{itemize}
-    \item Observation
-    \item RL policy 
-    \item Communication between policy and environment
+	\item Observation
+	\item RL policy 
+	\item Communication between policy and environment
 \end{itemize}
 We wanted to create an observation for each agent, precise and minimal, informative  about target reachability but also lacking of useless details. We were able to achieve that through our implementation of the graph observer, explained in the section \hyperref[sec:dagObserv]{5.1}. It provide the model of an agent's specific view with an high level of detail and information obtained from the environment. \\
 After that we have implemented an actor critic policy (A2C), a DQN and and a double dueling DQN. All have been fed and tested with normalized data obtained from our GNN model. His job is indeed to exploit all the information encoded in the observation graph's structure and packing them in a normalized tensor representation. With those, also different implementations of the experience replay where evaluated.\\ 
 Finally we changed the reward system, revised the deadlock control procedure and tuned the training parameters to improve the performances.\\
+\\
+\noindent
+We tested the various implementations we arranged in the project.\\
+In the case of the DDDQN we evaluated different configurations. By intuition we tried to increase the rewards in a way to tempt the policy to prioritize the agent's target as destination. From a starting value of 10 (which is the opposite reward value respect the deadlock event) to 100, obtaining in average better score of completion in the first hundred episode but no gains in the long run.
+We hypothesized also a possible bias that could have affected the performance of the policy: since the rewards for the "DONE" agents are submitted at each step maintaining an agent active in the trail for the entire episode could lead to the highest score possible. To solve that we added an additional reward in case of an ending of the episode with all the agents successfully arrived at destination. This reward is proportional to the number of remaining steps.\\
+Finally, following the standard approach suggested by the default implementation, we compared the results obtained by an implementation where the agents are allowed to learn at each step with our concise approach. It was able to perform better both in terms of deadlock value and completion score in the first hundred episodes nevertheless it converged to a common average value after that. Hence our implementation has to be preferred being cheaper in computational cost.\\
+\\
+The A2C performed worse than the DQN and D3QN in practice, since the implementation was less optimized and detailed. Moreover, it might happen that the higher variance of the A2C gradient simply requires more data and more episodes to stabilize and perform reasonably well.
+
 Here, as follows, we present the results obtained during our training sessions:
-\todo{da qui}
-\begin{itemize}
-	\item \textbf{excellent start}: every test we did in the first 200 episodes had completion averages above 40\% and deadlock averages below 30\%.
-	\item \textbf{Many episodes}: we have noticed that a very large number is needed to have a growth curve. We have estimated that at least 3000/4000 episodes are needed.
-\end{itemize}
-The final results obtained in the evaluation environments are shown in the tables:
 
 \begin{table}[htb]
 	\centering
@@ -30,6 +33,13 @@ The final results obtained in the evaluation environments are shown in the table
 	\caption{}
 	\label{tab:evaluation1}
 \end{table}
+\section{Future works}
+Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
+\begin{itemize}
+	\item For lack of resources we focused primary on the implementation and on the possible techniques which could fit better the resolution job. Proably better results can be obtained wrt the ones we reported by put more effort in the parameters optimization  
+	\item Other normalization methods can be taken in consideration. In particular reports from the state of the art shows in \cite{spectralNorm} how the \textbf{Spectral Normalisation} can be used to optimize the RL model performance. In particular it rely on on the relation between observations data decoupling the weight of the change from the direction of it, affecting optimisation in subtle ways.
+	\item Explore other observation structure. An option we initially evaluated was the possibility to construct an image representation of the environment divided in channel like has been presented in \cite{graphObserv},  with each channel containing agent and environment specific information. Even if still considered by us a valuable option it would be probably of hard implementation.
+\end{itemize}
 \section{Future works}
 Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
 \begin{itemize}
