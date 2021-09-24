@@ -5,7 +5,7 @@ In our project we tried to solve the flatland challenge problem with a reinforce
 	\item Communication between policy and environment
 \end{itemize}
 We wanted to create an observation for each agent, precise and minimal, informative  about target reachability but also lacking of useless details. We were able to achieve that through our implementation of the graph observer, explained in the section \hyperref[sec:dagObserv]{5.1}. It provide the model of an agent's specific view with an high level of detail and information obtained from the environment. \\
-After that we have implemented an actor critic policy (A2C), a DQN and and a double dueling DQN. All have been fed and tested with normalized data obtained from our GNN model. His job is indeed to exploit all the information encoded in the observation graph's structure and packing them in a normalized tensor representation. With those, also different implementations of the experience replay where evaluated.\\ 
+After that we have implemented an actor critic policy (A2C), a DQN and and a double dueling DQN. All have been fed and tested with normalized data obtained from our GCN model. His job is indeed to exploit all the information encoded in the observation graph's structure and packing them in a normalized tensor representation. With those, also different implementations of the experience replay where evaluated.\\ 
 Finally we changed the reward system, revised the deadlock control procedure and tuned the training parameters to improve the performances.\\
 \\
 \noindent
