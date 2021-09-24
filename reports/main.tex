@@ -18,6 +18,14 @@
 \usepackage{changepage}
 \usepackage{hyperref}
 \usepackage{multirow}
+\usepackage{lipsum}
+
+\newcommand\blfootnote[1]{%
+	\begingroup
+	\renewcommand\thefootnote{}\footnotetext{#1}%
+	\addtocounter{footnote}{-1}%
+	\endgroup
+}
 
 \begin{document}
 
@@ -34,7 +42,9 @@
 \\ Giovanni Minelli (\href{mailto:giovanni.minelli2@studio.unibo.it}{giovanni.minelli2@studio.unibo.it}) 
 \\ Lorenzo Turrini(\href{mailto:lorenzo.turrini4@studio.unibo.it}{lorenzo.turrini4@studio.unibo.it})}
 \date{\today}
+\blfootnote{https://github.com/johnMinelli/RL-flatland-challenge}
 \maketitle
+
 \newpage
 \tableofcontents
 \listoffigures
