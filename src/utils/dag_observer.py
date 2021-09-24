@@ -135,7 +135,7 @@ class DagObserver(ObservationBuilder):
         elif steps > 1:  # straight road
             return None
 
-        elif steps == 0 and self._get_start_node(self.prev_observations[handle]) == [(*start_pos, start_dir)]:  # switch
+        elif steps == 0 and self._get_start_node(self.prev_observations[handle])[0] == (*start_pos, start_dir):  # switch
             # reuse previous observation
             self._copy_graph_structure(di_graph, self.prev_observations[handle])
             observation = di_graph
@@ -151,7 +151,7 @@ class DagObserver(ObservationBuilder):
                 cost = steps + general_graph.nodes[start_pos]["targets"][handle][0]
                 di_graph.update(nodes=[((*start_pos, start_dir), {"shortest_path_cost": cost, "shortest_path": [start_pos]})])
             else:
-                if start_pos in ending_points:  #TESTME probably never ever called
+                if start_pos in ending_points:
                     ending_points.remove(start_pos)  # you are on a ending point but no transition is available
 
                 # STEP1 - explore target-to-agent without other agents
@@ -374,7 +374,7 @@ class DagObserver(ObservationBuilder):
                     if (current_node, current_orientation, next_node) not in invalid_transitions:
                         invalid_transitions.append((current_node, current_orientation, next_node))
                     elif (current_node, current_orientation, next_node) == quit:
-                        quit = True; break  #TESTME test if it still happen
+                        quit = True; break
                     else: quit = (current_node, current_orientation, next_node)
                     # this case you must have at least a transition possible from your orientation
                     # if you don't is because the the invalid_transition clone and you are using the comeback edge

@@ -1,5 +1,6 @@
 ﻿import random
 import numpy as np
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnvActions
 
 from src.utils.env_utils import create_rail_env, copy_obs
@@ -122,6 +123,9 @@ def train(env_params, train_params, wandb_config=None):
                 env.show_render()
 
             if all([done[a.handle] or env.dl_controller.deadlocks[a.handle] or env.dl_controller.starvations[a.handle] for a in env.agents]):
+                if all([a.status == RailAgentStatus.DONE_REMOVED or a.status == RailAgentStatus.DONE for a in env.agents]):
+                    for agent in range(env_params.n_agents):
+                        policy.step(env.prev_norm_observations[agent], agent_prev_action[agent], env_params.rewards.goal_reward*(max_steps-step), env.prev_norm_observations[agent], done[agent])
                 break
 
         # Epsilon decay

@@ -1,4 +1,6 @@
 from copy import deepcopy
+
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.utils.rendertools import RenderTool
 
@@ -23,6 +25,7 @@ class FlatlandRailEnv(RailEnv):
         self.state_size = self.params.max_state_size
         self.stats = {}
         self.prev_observations = {}
+        self.prev_norm_observations = {}
 
     def reset(self):
         self.obs_builder.set_env(self)
@@ -68,8 +71,11 @@ class FlatlandRailEnv(RailEnv):
 
         if stats: self.stats = stats
 
-        for a,o in obs.items():
-            if o is not None: self.prev_observations[a] = deepcopy(o)
+        for observation, norm_observation in zip(obs.items(), norm_obs.items()):
+            if observation[1] is not None:
+                self.prev_observations[observation[0]] = deepcopy(observation[1])
+                self.prev_norm_observations[norm_observation[0]] = deepcopy(norm_observation[1])
+            # if observation[1] is None and observation[0] in self.prev_norm_observations: norm_obs[observation[0]] = self.prev_norm_observations[observation[0]]  # full learning
         return norm_obs, rewards, dones, info
 
     def show_render(self):
@@ -113,18 +119,22 @@ class FlatlandRailEnv(RailEnv):
                 info["shortest_path_pre_cost"][i_agent] = 0
                 continue
             info["decision_required"][i_agent] = True
-            for _, start_node in obs[i_agent].nodes.items():
-                if dag_observer.DagNodeLabel.START in start_node: break
+            start_node = None
+            for _, n in obs[i_agent].nodes.items():
+                if dag_observer.DagNodeLabel.START in n: start_node = n; break
+            if start_node is None: raise Exception("Start node missing in the graph observation")
+
             if dag_observer.DagNodeLabel.DEADLOCK not in start_node:
                 switch = start_node["shortest_path"]
                 distance = start_node["shortest_path_cost"]
                 info["shortest_path"][i_agent] = switch
                 info["shortest_path_cost"][i_agent] = distance
                 if not self.prev_observations[i_agent] is None:
-                    for _, start_node in self.prev_observations[i_agent].nodes.items():
-                        if dag_observer.DagNodeLabel.START in start_node: break;
-                    switch_pre = start_node["shortest_path"]
-                    distance_pre = start_node["shortest_path_cost"]
+                    start_node = None
+                    for _, n in self.prev_observations[i_agent].nodes.items():
+                        if dag_observer.DagNodeLabel.START in n: start_node = n; break
+                    switch_pre = start_node["shortest_path"] if start_node is not None else switch
+                    distance_pre = start_node["shortest_path_cost"] if start_node is not None else distance
                 else:
                     switch_pre = switch
                     distance_pre = distance
@@ -136,7 +146,7 @@ class FlatlandRailEnv(RailEnv):
         # Rewards for previous action which caused such observation is given to the policy to learn
         # Also will be given prev_step observation and current observation
         for i_agent, agent in enumerate(self.agents):
-            if dones[i_agent]:
+            if dones[i_agent] and (agent.status == RailAgentStatus.DONE or agent.status == RailAgentStatus.DONE_REMOVED):
                 rewards[i_agent] = self.params.rewards.goal_reward
             elif info["deadlocks"][i_agent] and not self.dl_controller.starvations_target[i_agent]:
                 rewards[i_agent] = self.params.rewards.deadlock_penalty
