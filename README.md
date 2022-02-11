@@ -1,7 +1,7 @@
 # Solution to the Flatland Challenge
 2020 Edition - https://www.aicrowd.com/challenges/flatland-challenge
 
-[[https://s3.eu-central-1.amazonaws.com/aicrowd-static/SBB/images/Flatland_Logo.svg|alt=octocat]]
+![flatland_logo](/docs/Flatland_Logo.svg)
 
 # Usage
 ### Train
